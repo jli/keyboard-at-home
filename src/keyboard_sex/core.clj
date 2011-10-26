@@ -19,6 +19,9 @@
 
 ;;; util
 
+(defn downcase [str]
+  (map data/symbol-downcase (.toLowerCase str)))
+
 (defn char->position+finger [layout char]
   (let [pos (layout char)
         fing (data/position->finger pos)]
@@ -130,12 +133,17 @@
       :layout data/dvorak-layout
       :chars-fitness (gen-chars-fitness data/dvorak-layout)})
 
+(def colemak
+     {:name "colemak"
+      :layout data/colemak-layout
+      :chars-fitness (gen-chars-fitness data/colemak-layout)})
+
 (defn fitness [kbd text]
   (let [fitmap #(get (:chars-fitness kbd) % 0)]
     (reduce (fn [acc cs] (+ acc (fitmap cs)))
-            0 (partition 2 1 text))))
+            0 (partition 2 1 (downcase text)))))
 
 (defn test-fitness [kbd text]
   (let [fitmap #(get (:chars-fitness kbd) % 0)]
-    (doseq [pair (partition 2 1 text)]
+    (doseq [pair (partition 2 1 (downcase text))]
       (println pair (fitmap pair)))))
