@@ -15,6 +15,10 @@
 
 (defn index [xs] (map-indexed vector xs))
 
+(defn index-by [f xs] (map (fn [x] [(f x) x]) xs))
+
+(defn average [xs] (float (/ (apply + xs) (count xs))))
+
 ;; thought this (or similar) existed already
 (defn assoc-with [map key val f]
   (assoc map key (f (get map key) val)))
@@ -195,8 +199,6 @@
 (defn random-keyboard []
   (keyvec->keyboard (shuffle data/charset)))
 
-(defn index-by [f xs] (map (fn [x] [(f x) x]) xs))
-
 (defn evolve
   "Returns a new population of evolved keyboards. radiation [0,1)
   controls how \"violent\" mutations are. immigrants [0,1] controls
@@ -218,20 +220,37 @@
     {:scored scored
      :next-population next-pop}))
 
-(defn genetic [n]
-  (loop [pop (repeatedly n random-keyboard)
-         gen 0]
-    (let [{:keys [scored next-population]}
-          (evolve pop 0.01 0.10 data/brown-humor2)
-          ave-score (fn [xs] (float (/ (apply + (map first xs))
-                                       (count xs))))
-          all-ave (ave-score scored)
-          topn 5
-          top (take topn scored)
-          top-ave (ave-score top)]
-      (println "======== generation" gen)
-      (println "top" topn "ave:" top-ave)
-      (println "  all ave:" all-ave)
-      (doseq [[score kbd] top] (println (keyboard+score->str kbd score)))
+;; state has generation number, fitness test data, current population,
+;; top organisms so far, and history of population fitness.
+(defn genetic-loop [state]
+  (loop [{:keys [gen text population top history]} state]
+    (let [{:keys [scored next-population]} (evolve population 0.01 0.10 text)
+          ave-score (fn [xs] (average (map first xs)))
+          topn (count top)
+          gen-top (take topn scored)
+          new-top (take topn (sort-by first (concat scored top)))]
+      (println "======== generation" (inc gen))
+      (println "history:" (map average (take 10 history)))
+      (println "    gen ave:" (ave-score scored))
+      (println "gen top ave:" (ave-score gen-top))
+      (println "    top ave:" (ave-score new-top))
+      (doseq [[score kbd] gen-top] (println (keyboard+score->str kbd score)))
       ;; (Thread/sleep 1000)
-      (recur next-population (inc gen)))))
+      (recur {:gen (inc gen)
+              :text text
+              :population next-population
+              :top new-top
+              :history (conj history (map first gen-top))}))))
+
+(defn initial-gen [n topn text]
+  (let [pop (repeatedly n random-keyboard)
+        scored (sort-by first (index-by #(fitness % text) pop))
+        top (take topn scored)]
+    {:gen 0
+     :text text
+     :population pop
+     :top top
+     :history (list (map first top))}))
+
+(defn genetic [n topn]
+  (genetic-loop (initial-gen n topn data/brown-humor2)))
