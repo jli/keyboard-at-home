@@ -121,6 +121,11 @@
 (defn print-keyboard [kbd]
   (println (data/keyvec->str (:keyvec kbd))))
 
+(defn keyboard+score->str [kbd score]
+  (let [[a b c] (.split (data/keyvec->str (:keyvec kbd)) "\n")
+        a (str a "     " score)]
+    (apply str (interpose "\n" [a b c]))))
+
 (def qwerty (keyvec->keyboard data/qwerty-keyvec))
 (def dvorak (keyvec->keyboard data/dvorak-keyvec))
 (def colemak (keyvec->keyboard data/colemak-keyvec))
@@ -196,31 +201,37 @@
   "Returns a new population of evolved keyboards. radiation [0,1)
   controls how \"violent\" mutations are. immigrants [0,1] controls
   how many randoms are added to the population."
-  [population radiation immigrants text verbose]
-  ;; children: each mates with all others and get mutated
+  [population radiation immigrants text]
   ;; random immigrants: some percent of original population
-  ;; candidates: children + original population + immigrants
+  ;; parents: current population + immigrants
+  ;; children: each parent mates with all others
+  ;; next-gen: parents + children, mutated
   ;; n*(n-1)/2 + n + immigrants*n
-  ;; next: top n candidates, sorted by fitness
-  (let [children (map (partial apply sex) (pairwise population))
-        immigrant-limit (int (* immigrants (count population)))
+  ;; new population: top n of next-gen, sorted by fitness
+  (let [immigrant-limit (int (* immigrants (count population)))
         immigrants (repeatedly immigrant-limit random-keyboard)
-        candidates (map #(mutate % radiation)
-                        (concat immigrants population children))
-        with-scores (sort-by first
-                             (index-by #(fitness % text) candidates))
-        new-pop (map second (take (count population) with-scores))]
-    (when verbose
-      (println "children:")
-      (doseq [i children] (print-keyboard i) (newline) (flush))
-      (println "immigrants:")
-      (doseq [i immigrants] (print-keyboard i) (newline) (flush))
-      (println "scores:")
-      (doseq [[s k] with-scores]
-        (print-keyboard k) (println s)))
-    new-pop))
+        parents (concat immigrants population)
+        children (map (partial apply sex) (pairwise parents))
+        next-gen (map #(mutate % radiation) (concat parents children))
+        scored (sort-by first (index-by #(fitness % text) next-gen))
+        next-pop (map second (take (count population) scored))]
+    {:scored scored
+     :next-population next-pop}))
 
 (defn genetic [n]
-  (loop [pop (repeatedly n random-keyboard)]
-    (Thread/sleep 1000)
-    (recur (evolve pop 0 0.5 data/brown-humor2 true))))
+  (loop [pop (repeatedly n random-keyboard)
+         gen 0]
+    (let [{:keys [scored next-population]}
+          (evolve pop 0.01 0.10 data/brown-humor2)
+          ave-score (fn [xs] (float (/ (apply + (map first xs))
+                                       (count xs))))
+          all-ave (ave-score scored)
+          topn 5
+          top (take topn scored)
+          top-ave (ave-score top)]
+      (println "======== generation" gen)
+      (println "top" topn "ave:" top-ave)
+      (println "  all ave:" all-ave)
+      (doseq [[score kbd] top] (println (keyboard+score->str kbd score)))
+      ;; (Thread/sleep 1000)
+      (recur next-population (inc gen)))))
