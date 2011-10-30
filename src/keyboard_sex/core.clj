@@ -1,23 +1,31 @@
 (ns keyboard-sex.core
-  (:require [keyboard-sex.data :as data]))
+  (:require [keyboard-sex.data :as data]
+            [clojure.set :as set]))
 
-;; keyboards are: :name, :layout, :chars-fitness
+;; keyboards have a keyvec, a layout, and a character pair fitness
+;; function. keyvecs and layouts are defined in data. the fitness
+;; function is defined here.
 
-;; layouts are maps of char -> position (row, column)
-;; (derived: char->finger (left/right, digit number (1-4 is index-pinky)))
-;; shifted keys don't vary
-
-;; what are sensible costs?
-;; terrible on dvorak:
-;; equipment
-
-;; adjust:
-;; twistiness worse. (eq qu)
-;; finger strength less bad (smaller, closer)
-;; same finger worse (ui)
 
 
 ;;; util
+
+(let [random (java.util.Random.)]
+  (defn rand-bool [] (.nextBoolean random)))
+
+(defn index [xs] (map-indexed vector xs))
+
+;; thought this (or similar) existed already
+(defn assoc-with [map key val f]
+  (assoc map key (f (get map key) val)))
+
+(defn pairwise
+  ([xs] (pairwise xs []))
+  ([xs acc]
+     (if-let [x (first xs)]
+       (let [xpairs (map (partial vector x) (rest xs))]
+         (recur (rest xs) (concat xpairs acc)))
+       acc)))
 
 (defn downcase [str]
   (map data/symbol-downcase (.toLowerCase str)))
@@ -28,6 +36,10 @@
     (concat pos fing)))
 
 (def char-pairs (for [c1 data/charset c2 data/charset] [c1 c2]))
+
+
+
+;;; fitness - still needs tweaking
 
 ;; punish using middle keys - index stretching painful
 ;; reward home row
@@ -77,33 +89,6 @@
    (and (= h1 :right) (> c1 c2)) 0
    :default 1))
 
-;; sanity test scoring
-(comment
-
-  ;; each char
-  (doseq [[c cost]
-         (->>
-          (map #(char->position+finger data/dvorak-layout %) data/charset)
-          (map finger-strength-cost)
-          (map vector data/charset)
-          (sort-by second))]
-    (println c cost))
-
-  ;; row and roll
-  (doseq [[pair costs]
-          (->> (map (fn [pair]
-                      (map #(char->position+finger data/dvorak-layout %)
-                           pair))
-                    char-pairs)
-               (map (fn [p] [(apply row-cross-cost p)
-                             (apply repeat-finger-cost p)
-                             (apply roll-cost p)]))
-               (map vector char-pairs)
-               (sort-by second))]
-    (println pair costs))
-)
-
-
 ;; not symmetric! reward weak->strong sequences
 (defn chars-fitness [layout chars]
   (let [positions+fingers (map #(char->position+finger layout %) chars)
@@ -119,31 +104,123 @@
     ;; [strength row roll]
     (+ strength row rep roll)))
 
-(defn gen-chars-fitness [layout]
+(defn layout->fitness [layout]
   (reduce (fn [fitmap cs] (assoc fitmap cs (chars-fitness layout cs)))
           {} char-pairs))
 
-(def qwerty
-     {:name "qwerty"
-      :layout data/qwerty-layout
-      :chars-fitness (gen-chars-fitness data/qwerty-layout)})
 
-(def dvorak
-     {:name "dvorak"
-      :layout data/dvorak-layout
-      :chars-fitness (gen-chars-fitness data/dvorak-layout)})
 
-(def colemak
-     {:name "colemak"
-      :layout data/colemak-layout
-      :chars-fitness (gen-chars-fitness data/colemak-layout)})
+;;; keyboards
+
+(defn keyvec->keyboard [kv]
+  (let [layout (data/keyvec->layout kv)]
+    {:keyvec kv
+     :layout layout
+     :chars-fitness (layout->fitness layout)}))
+
+(defn print-keyboard [kbd]
+  (println (data/keyvec->str (:keyvec kbd))))
+
+(def qwerty (keyvec->keyboard data/qwerty-keyvec))
+(def dvorak (keyvec->keyboard data/dvorak-keyvec))
+(def colemak (keyvec->keyboard data/colemak-keyvec))
 
 (defn fitness [kbd text]
+  ;; unknown char pairs get 0 cost
   (let [fitmap #(get (:chars-fitness kbd) % 0)]
     (reduce (fn [acc cs] (+ acc (fitmap cs)))
             0 (partition 2 1 (downcase text)))))
 
 (defn test-fitness [kbd text]
-  (let [fitmap #(get (:chars-fitness kbd) % 0)]
-    (doseq [pair (partition 2 1 (downcase text))]
-      (println pair (fitmap pair)))))
+  (let [fitmap #(get (:chars-fitness kbd) % 0)
+        pairscores (map #(vector % (fitmap %)) (partition 2 1 (downcase text)))]
+    (doseq [[pair score] pairscores]
+      (println pair score))
+    (println (apply + (map second pairscores)))))
+
+
+
+;;; it's evolution baby
+
+;; TODO cleanup
+(defn sex [kbd1 kbd2]
+  (let [[kv1 kv2] (map (comp data/layout->keyvec :layout) [kbd1 kbd2])
+        candidate-kv (map (fn [c1 c2] (if (rand-bool) c1 c2))
+                          kv1 kv2)
+        missing (set/difference data/charset candidate-kv)
+        key-positions (reduce (fn [keypos [i k]]
+                                (assoc-with keypos k i conj))
+                              {}
+                              (index candidate-kv))
+        dupes (filter (fn [[_k positions]] (> (count positions) 1))
+                      key-positions)
+        replacements (into {} (map (fn [[_k positions] missing]
+                                     [(rand-nth positions) missing])
+                                   dupes missing))
+        child (map-indexed (fn [i c]
+                             (if-let [c2 (replacements i)]
+                               c2
+                               c))
+               candidate-kv)]
+    (keyvec->keyboard child)))
+
+(defn rotate [v]
+  (if (rand-bool)
+    (concat (rest v) [(first v)])
+    (concat [(last v)] (butlast v))))
+
+(defn rand-swap [v]
+  (let [[i1 i2] [(rand-int (count v))
+                 (rand-int (count v))]]
+    (map-indexed (fn [i k]
+                   (cond (= i i1) (nth v i2)
+                         (= i i2) (nth v i1)
+                         :default k))
+                 v)))
+
+(defn tweak-keyvec [kv]
+  (let [mutators [rotate rand-swap]]
+    ((rand-nth mutators) kv)))
+
+(defn mutate [keyboard radiation]
+  (let [times (int (* radiation 100))
+        mutated-kv (nth (iterate tweak-keyvec (:keyvec keyboard)) times)]
+    (keyvec->keyboard mutated-kv)))
+
+(defn random-keyboard []
+  (keyvec->keyboard (shuffle data/charset)))
+
+(defn index-by [f xs] (map (fn [x] [(f x) x]) xs))
+
+(defn evolve
+  "Returns a new population of evolved keyboards. radiation [0,1)
+  controls how \"violent\" mutations are. immigrants [0,1] controls
+  how many randoms are added to the population."
+  [population radiation immigrants text verbose]
+  ;; children: each mates with all others and get mutated
+  ;; random immigrants: some percent of original population
+  ;; candidates: children + original population + immigrants
+  ;; n*(n-1)/2 + n + immigrants*n
+  ;; next: top n candidates, sorted by fitness
+  (let [children (map (partial apply sex) (pairwise population))
+        immigrant-limit (int (* immigrants (count population)))
+        immigrants (repeatedly immigrant-limit random-keyboard)
+        candidates (map #(mutate % radiation)
+                        (concat immigrants population children))
+        with-scores (sort-by first
+                             (index-by #(fitness % text) candidates))
+        new-pop (map second (take (count population) with-scores))]
+    (when verbose
+      (println "children:")
+      (doseq [i children] (print-keyboard i) (newline) (flush))
+      (println "immigrants:")
+      (doseq [i immigrants] (print-keyboard i) (newline) (flush))
+      (println "scores:")
+      (doseq [[s k] with-scores]
+        (print-keyboard k) (println s)))
+    new-pop))
+
+(defn genetic [n]
+  (loop [pop (repeatedly n random-keyboard)]
+    (Thread/sleep 1000)
+    (recur (evolve pop 0 0.5 data/brown-humor2 true))))
