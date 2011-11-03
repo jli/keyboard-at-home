@@ -15,7 +15,7 @@
 
 (defn index [xs] (map-indexed vector xs))
 
-(defn index-by [f xs] (map (fn [x] [(f x) x]) xs))
+(defn pindex-by [f xs] (pmap (fn [x] [(f x) x]) xs))
 
 (defn average [xs] (float (/ (apply + xs) (count xs))))
 
@@ -213,17 +213,21 @@
   (let [immigrant-limit (int (* immigrants (count population)))
         immigrants (repeatedly immigrant-limit random-keyboard)
         parents (concat immigrants population)
-        children (map (partial apply sex) (pairwise parents))
-        next-gen (map #(mutate % radiation) (concat parents children))
-        scored (sort-by first (index-by #(fitness % text) next-gen))
+        ;; the next 3 lines take about the same time
+        children (time (doall (map (partial apply sex) (pairwise parents))))
+        next-gen (time (doall (map #(mutate % radiation) (concat parents children))))
+        scored (time (doall (sort-by first (pindex-by #(fitness % text) next-gen))))
         next-pop (map second (take (count population) scored))]
     {:scored scored
      :next-population next-pop}))
+
+(def state-atom (atom nil))
 
 ;; state has generation number, fitness test data, current population,
 ;; top organisms so far, and history of population fitness.
 (defn genetic-loop [state]
   (loop [{:keys [gen text population top history]} state]
+    (swap! state-atom state)
     (let [{:keys [scored next-population]} (evolve population 0.01 0.10 text)
           ave-score (fn [xs] (average (map first xs)))
           topn (count top)
@@ -244,7 +248,7 @@
 
 (defn initial-gen [n topn text]
   (let [pop (repeatedly n random-keyboard)
-        scored (sort-by first (index-by #(fitness % text) pop))
+        scored (sort-by first (pindex-by #(fitness % text) pop))
         top (take topn scored)]
     {:gen 0
      :text text
@@ -253,4 +257,7 @@
      :history (list (map first top))}))
 
 (defn genetic [n topn]
-  (genetic-loop (initial-gen n topn data/brown-humor2)))
+  (genetic-loop (initial-gen n topn (str data/brown-humor2
+                                         data/brown-humor1
+                                         data/brown-scifi1
+                                         ))))
