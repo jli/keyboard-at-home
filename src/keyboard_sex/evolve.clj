@@ -61,7 +61,7 @@
 
 (defn index [xs] (map-indexed vector xs))
 
-(defn pindex-by [f xs] (pmap (fn [x] [(f x) x]) xs))
+(defn ppair-with [f xs] (pmap (fn [x] [x (f x)]) xs))
 
 (defn average [xs] (float (/ (apply + xs) (count xs))))
 
@@ -92,12 +92,12 @@
 ;;; it's evolution baby
 
 (defn local-fitness [population text]
-  (sort-by first (pindex-by #(kbd/fitness % text) population)))
+  (sort-by second (ppair-with #(kbd/fitness % text) population)))
 
 (defonce keyboard-work (atom nil))
 (defonce worker-stats (atom {}))
 
-(def empty-stats {:n 0 :mean 0
+(def empty-stats {:n 0 :mean 0.
                   ;; :stddev nil :25 nil :50 nil :75 nil :95 nil
                   })
 
@@ -155,7 +155,7 @@
                    (| state
                       #(update % :in-progress in-progress-disj kvs id)
                       #(update % :finished into work)))]
-    (println "work is " @keyboard-work)
+    ;; (println "work is " @keyboard-work)
     (swap! keyboard-work add-done)))
 
 ;; frobbify state so workers can display something interesting
@@ -165,7 +165,7 @@
 ;; let the internet share in our love
 ;; rough as hell first cut. I mean, uh, "minimum viable product"
 (defn distributed-fitness [population nworkers]
-  (reset! keyboard-work {:new (batch (max nworkers 1) population)
+  (reset! keyboard-work {:new (batch (* 5 (max nworkers 1)) population)
                          :in-progress #{}
                          :finished []})
   (let [start (java.util.Date.)
@@ -175,11 +175,12 @@
       (let [{:keys [new in-progress finished]} @keyboard-work]
         (if (= size (count finished))
           (do (println "done! started" start ", now" (java.util.Date.))
-              (reset! keyboard-work nil) ; crud!
-              finished)
+              (reset! keyboard-work nil) ; crud! necessary? represent
+                                         ; "active" status another way
+              (sort-by second finished))
           (do (println "not done yet." (count in-progress) "in progress."
                        (count new) "undone.")
-              (Thread/sleep 10000)
+              (Thread/sleep 2000)
               (recur)))))))
 
 ;; for each key position, randomly select a character from one of the
@@ -244,7 +245,7 @@
         children (time (doall (map (partial apply sex) (pairwise parents))))
         next-gen (time (doall (map #(mutate % radiation) (concat parents children))))
         scored (time (distributed-fitness next-gen nworkers))
-        next-pop (map second (take (count population) scored))]
+        next-pop (map first (take (count population) scored))]
     {:scored scored
      :next-population next-pop}))
 
@@ -255,22 +256,21 @@
 (defn genetic-loop [{:keys [gen workers population top history] :as state}]
   (reset! state-atom state)
   (let [{:keys [scored next-population]} (evolve population 0.01 0.10 workers)
-        ave-score (fn [xs] (average (map first xs)))
+        ave-score (fn [xs] (average (map second xs)))
         topn (count top)
         gen-top (take topn scored)
-        new-top (take topn (sort-by first (concat scored top)))]
+        new-top (take topn (sort-by second (concat scored top)))]
     (println "======== generation" (inc gen))
     (println "history:" (map average (take 10 history)))
     (println "    gen ave:" (ave-score scored))
     (println "gen top ave:" (ave-score gen-top))
     (println "    top ave:" (ave-score new-top))
-    (doseq [[score kv] gen-top] (println (kbd/keyvec+score->str kv score)))
-    ;; (Thread/sleep 1000)
+    (doseq [[kv score] gen-top] (println (kbd/keyvec+score->str kv score)))
     (recur {:gen (inc gen)
             :workers workers
             :population next-population
             :top new-top
-            :history (conj history (map first gen-top))})))
+            :history (conj history (map second gen-top))})))
 
 (defn initial-gen [n topn text]
   (let [pop (repeatedly n random-keyvec)
@@ -281,7 +281,7 @@
      :workers 0
      :population pop
      :top top
-     :history (list (map first top))}))
+     :history (list (map second top))}))
 
 (defn genetic [n topn]
   (genetic-loop (initial-gen n topn data/fitness)))
