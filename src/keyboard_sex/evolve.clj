@@ -228,7 +228,7 @@
 ;; state has generation number, fitness test data, current population,
 ;; top organisms so far, and history of population fitness.
 (defn genetic-loop [{:keys [gen text population top history] :as state}]
-  (swap! state-atom state)
+  (reset! state-atom state)
   (let [{:keys [scored next-population]} (evolve population 0.01 0.10 text)
         ave-score (fn [xs] (average (map first xs)))
         topn (count top)
