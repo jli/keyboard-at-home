@@ -77,16 +77,6 @@
          (recur (rest xs) (concat xpairs acc)))
        acc)))
 
-(defn downcase [str]
-  (map kbd/symbol-downcase (.toLowerCase str)))
-
-(defn char->position+finger [layout char]
-  (let [pos (layout char)
-        fing (kbd/position->finger pos)]
-    (concat pos fing)))
-
-(def char-pairs (for [c1 kbd/charset c2 kbd/charset] [c1 c2]))
-
 
 
 ;;; enterprise plumbing
@@ -99,113 +89,10 @@
 
 
 
-;;; fitness - still needs tweaking
-
-;; punish using middle keys - index stretching painful
-;; reward home row
-(defn finger-strength-cost [[row _col hand digit]]
-  (let [hand-cost (if (= hand :left) 1 0)
-        digit-cost (case digit
-                         (:index :salute) 1
-                         :ring 2
-                         :pinky 3
-                         :index-stretch 4)
-        position-cost (case row
-                            0 2
-                            1 0
-                            2 3)]
-    (+ hand-cost digit-cost position-cost)))
-
-
-;; 0 for same row or hand alternation. high for adjacent fingers.
-(defn row-cross-cost [[r1 c1 h1 d1] [r2 c2 h2 d2]]
-  (if (or (= r1 r2) (not= h1 h2))
-    0
-    ;; range of abs(c1-c2), given h1=h2: 01234
-    (let [col-cost (- 5 (Math/abs (- c1 c2)))
-          row-diff (Math/abs (- r1 r2))]
-      (* row-diff col-cost))))
-
-;; repeated finger use punished (except for same char).
-(defn repeat-finger-cost [[r1 c1 h1 d1] [r2 c2 h2 d2]]
-  ;; special case for index, since it can be classified as
-  ;; index-stretch
-  (let [same-finger? (and (= h1 h2)
-                          (or (= d1 d2)
-                              (= #{d1 d2} #{:index :index-stretch})))
-        same-key? (and (= r1 r2) (= c1 c2))]
-    (if (or (not same-finger?) same-key?)
-      0
-      (let [row-diff (Math/abs (- r1 r2))
-            ;; column jumping is truly terrible (ui, ip)
-            col-diff (* 3 (Math/abs (- c1 c2)))]
-        (+ row-diff col-diff)))))
-
-;; if not alternating, prefer moving from weak to strong fingers.
-(defn roll-cost [[r1 c1 h1 d1] [r2 c2 h2 d2]]
-  (cond
-   (not= h1 h2) 0
-   (and (= h1 :left)  (> c2 c1)) 0
-   (and (= h1 :right) (> c1 c2)) 0
-   :default 1))
-
-;; not symmetric! reward weak->strong sequences
-(defn chars-fitness [layout chars]
-  (let [positions+fingers (map #(char->position+finger layout %) chars)
-        strength (apply + (map finger-strength-cost positions+fingers))
-        ;; directly applying row-cross-cost and roll-cost to
-        ;; positions+fingers means they must be pairs! could be fancy
-        ;; and map them after (partition 2 1 ...), but this is slow
-        ;; enough.
-        row (apply row-cross-cost positions+fingers)
-        rep (apply repeat-finger-cost positions+fingers)
-        roll (apply roll-cost positions+fingers)]
-    ;; (println (format "chars,str,row,roll: %s %d %d %d" chars strength row roll))
-    ;; [strength row roll]
-    (+ strength row rep roll)))
-
-(defn keyvec->chars-fitness [kv]
-  (let [layout (kbd/keyvec->layout kv)]
-   (reduce (fn [fitmap cs] (assoc fitmap cs (chars-fitness layout cs)))
-           {} char-pairs)))
-
-
-
-;;; keyboards
-
-(defn print-keyvec [kv] (println (kbd/keyvec->str kv)))
-
-(defn keyvec+score->str [kv score]
-  (let [[a b c] (.split (kbd/keyvec->str kv) "\n")
-        a (str a "     " score)]
-    (apply str (interpose "\n" [a b c]))))
-
-(def qwerty kbd/qwerty-keyvec)
-(def dvorak kbd/dvorak-keyvec)
-(def colemak kbd/colemak-keyvec)
-
-(defn fitness [kv text]
-  ;; unknown char pairs get 0 cost
-  (let [chars-fitness (keyvec->chars-fitness kv)
-        cost #(get chars-fitness % 0)]
-    (reduce (fn [acc cs] (+ acc (cost cs)))
-            0
-            (partition 2 1 (downcase text)))))
-
-(defn test-fitness [kv text]
-  (let [chars-fitness (keyvec->chars-fitness kv)
-        cost #(get chars-fitness % 0)
-        pairscores (map #(vector % (cost %)) (partition 2 1 (downcase text)))]
-    (doseq [[pair score] pairscores]
-      (println pair score))
-    (println (apply + (map second pairscores)))))
-
-
-
 ;;; it's evolution baby
 
 (defn local-fitness [population text]
-  (sort-by first (pindex-by #(fitness % text) population)))
+  (sort-by first (pindex-by #(kbd/fitness % text) population)))
 
 (defonce keyboard-work (atom nil))
 (defonce worker-stats (atom {}))
@@ -263,9 +150,7 @@
 
 ;; work is [[<kv> <score>] ...]. kvs in original order.
 (defn work-done [id work]
-  (println "yo got this work" id work)
   (let [kvs (map first work)
-        _ (println "kvs is " work kvs)
         add-done (fn [state]
                    (| state
                       #(update % :in-progress in-progress-disj kvs id)
@@ -275,7 +160,7 @@
 
 ;; frobbify state so workers can display something interesting
 (defn status []
-  )
+  "todo")
 
 ;; let the internet share in our love
 ;; rough as hell first cut. I mean, uh, "minimum viable product"
@@ -379,7 +264,7 @@
     (println "    gen ave:" (ave-score scored))
     (println "gen top ave:" (ave-score gen-top))
     (println "    top ave:" (ave-score new-top))
-    (doseq [[score kv] gen-top] (println (keyvec+score->str kv score)))
+    (doseq [[score kv] gen-top] (println (kbd/keyvec+score->str kv score)))
     ;; (Thread/sleep 1000)
     (recur {:gen (inc gen)
             :workers workers

@@ -12,9 +12,21 @@
             [keyboard-sex.evolve :as evolve])
   (:gen-class))
 
+;; use strings everywhere? bench
+(defn serial-keyvecs [kvs]
+  (->> kvs
+       (map (partial apply str))
+       prn-str))
+
+(defn deserial-work [workstr]
+  (println "str is" workstr)
+  (->> workstr
+       read-string
+       (map (fn [[keystr score]] [(seq keystr) score]))))
+
 (defroutes base
-  (GET "/work" [id] (response (prn-str (evolve/get-work id))))
-  (POST "/done" [id res] (do (evolve/work-done id (read-string res))
+  (GET "/work" [id] (response (serial-keyvecs (evolve/get-work id))))
+  (POST "/done" [id res] (do (evolve/work-done id (deserial-work res))
                              (response "ok")))
   (GET "/status" [] (response (prn-str (evolve/status))))
   (GET "/love" [] (response "<3"))
