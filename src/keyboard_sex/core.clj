@@ -13,6 +13,10 @@
   (:gen-class))
 
 (defroutes base
+  (GET "/work" [id] (response (prn-str (evolve/get-work id))))
+  (POST "/done" [id res] (do (evolve/work-done id (read-string res))
+                             (response "ok")))
+  (GET "/status" [] (response (prn-str (evolve/status))))
   (GET "/love" [] (response "<3"))
   (GET "/" [] (file-response "resources/public/index.html"))
   (resources "/")
@@ -22,7 +26,8 @@
      (-> base
          wrap-params
          wrap-gzip
-         (wrap-reload '(keyboard-sex.core keyboard-sex.evolve keyboard-sex.kbd keyboard-sex.data))
+         ;; hm, doesn't seem to interact well with defonce
+         ;; (wrap-reload '(keyboard-sex.core keyboard-sex.evolve keyboard-sex.kbd keyboard-sex.data))
          wrap-stacktrace))
 
 (defn -main [& args]

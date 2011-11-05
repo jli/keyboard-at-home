@@ -608,3 +608,5 @@
      providing . Jennie closed her eyes , stretched forth her arms ,
      and said : `` Take my hand , Louise ; ; a stranger in paradise
      ''.")
+
+(def fitness (str brown-humor2 brown-humor1 brown-scifi1))
