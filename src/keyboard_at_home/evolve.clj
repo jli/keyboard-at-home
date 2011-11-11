@@ -145,9 +145,9 @@ f (in parallel)."
         dispense (fn [{:keys [new] :as work-state}]
                    (if-let [kvs (first new)]
                      (do (reset! hack kvs) ; ugh
-                         (| work-state
-                            #(update % :new rest)
-                            #(update % :in-progress conj
+                         (-> work-state
+                             (update :new rest)
+                             (update :in-progress conj
                                      (in-progress-batch kvs id))))
                      work-state))]
     (swap! keyboard-work dispense)
@@ -157,9 +157,9 @@ f (in parallel)."
 (defn work-done [id work]
   (let [kvs (map first work)
         add-done (fn [state]
-                   (| state
-                      #(update % :in-progress in-progress-disj kvs id)
-                      #(update % :finished into work)))]
+                   (-> state
+                       (update :in-progress in-progress-disj kvs id)
+                       (update :finished into work)))]
     ;; (println "work is " @keyboard-work)
     (swap! keyboard-work add-done)))
 
