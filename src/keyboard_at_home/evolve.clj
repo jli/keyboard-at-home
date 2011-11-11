@@ -29,8 +29,10 @@
 ;; ** in-progress (assigned to a worker). have timestamps and worker ids.
 ;; ** new (unassigned)
 ;;
-;; there are also worker stats, containing per-worker summary stats of
+;; * worker stats, containing per-worker summary stats of
 ;; compute time
+;;
+;; todo: different parameters with top score curves
 
 
 
@@ -96,6 +98,12 @@ f (in parallel)."
 
 ;;; it's evolution baby
 
+(def work-batch-size 5)
+(def radiation-level 0.01)
+(def immigrant-rate 0.10)
+(def work-batch-ttl (* 15 1000))
+(def reaper-period (* 3 1000))
+
 (defn local-fitness [population text]
   (sort-by second (ppair-with #(kbd/fitness % text) population)))
 
@@ -103,6 +111,7 @@ f (in parallel)."
 (defonce worker-stats (atom {}))
 
 (def empty-stats {:n 0 :mean 0.
+                  :pinged nil ; last-heard-from time
                   ;; :stddev nil :25 nil :50 nil :75 nil :95 nil
                   })
 
@@ -112,7 +121,8 @@ f (in parallel)."
                     (+ n add-n))]
     (assoc stats
       :n (+ add-n n)
-      :mean new-mean)))
+      :mean new-mean
+      :pinged (now))))
 
 (defn add-worker-stats [id n time]
   (swap! worker-stats (fn [stats]
@@ -146,8 +156,7 @@ f (in parallel)."
                    (if-let [kvs (first new)]
                      (-> work-state
                          (update :new rest)
-                         (update :in-progress conj
-                                 (in-progress-batch kvs id))
+                         (update :in-progress conj (in-progress-batch kvs id))
                          (assoc :new-in-progress kvs))
                      (dissoc work-state :new-in-progress)))
         new-state (swap! keyboard-work dispense)]
@@ -188,25 +197,21 @@ f (in parallel)."
     (recur timeout sleep)))
 
 ;; let the internet share in our love
-;; rough as hell first cut. I mean, uh, "minimum viable product"
-(defn distributed-fitness [population nworkers]
-  (reset! keyboard-work {:new (partition-all (* 5 (max nworkers 1)) population)
+(defn distributed-fitness [population]
+  (reset! keyboard-work {:start (now)
+                         :new (partition-all work-batch-size population)
                          :in-progress #{}
-                         :finished []})
-  (let [start (java.util.Date.)
-        size (count population)]
-    ;; fire off work-reaper here!
-    (loop []
-      (let [{:keys [new in-progress finished]} @keyboard-work]
-        (if (= size (count finished))
-          (do (println "done! started" start ", now" (java.util.Date.))
-              (reset! keyboard-work nil) ; crud! necessary? represent
-                                         ; "active" status another way
-              (sort-by second finished))
-          (do (println "not done yet." (count in-progress) "in progress."
-                       (count new) "undone.")
-              (Thread/sleep 2000)
-              (recur)))))))
+                         ;; :finished is a set, in case of duped work
+                         :finished #{}})
+
+  (loop []
+    (let [{:keys [start new in-progress finished]} @keyboard-work]
+      (if (= (count population) (count finished))
+        (do (println "done! started" start ", now" (now))
+            (sort-by second finished))
+        (do (println (count in-progress) "in progress," (count new) "undone")
+            (Thread/sleep 1000)
+            (recur))))))
 
 ;; for each key position, randomly select a character from one of the
 ;; parents. this can result in duplicate keys and missing keys.
@@ -263,13 +268,13 @@ f (in parallel)."
   "Returns a new population of evolved keyboards. radiation [0,1)
   controls how \"violent\" mutations are. immigrants [0,1] controls
   how many randoms are added to the population."
-  [population radiation immigrants nworkers]
+  [population radiation immigrants]
   (let [immigrant-limit (int (* immigrants (count population)))
         immigrants (repeatedly immigrant-limit random-keyvec)
         parents (concat immigrants population)
         children (time (doall (map (partial apply sex) (pairwise parents))))
         next-gen (time (doall (map #(mutate % radiation) (concat parents children))))
-        scored (time (distributed-fitness next-gen nworkers))
+        scored (time (distributed-fitness next-gen))
         next-pop (map first (take (count population) scored))]
     {:scored scored
      :next-population next-pop}))
@@ -278,9 +283,9 @@ f (in parallel)."
 
 ;; state has generation number, fitness test data, current population,
 ;; top organisms so far, and history of population fitness.
-(defn genetic-loop [{:keys [gen workers population top history] :as state}]
+(defn genetic-loop [{:keys [gen population top history] :as state}]
   (reset! state-atom state)
-  (let [{:keys [scored next-population]} (evolve population 0.01 0.10 workers)
+  (let [{:keys [scored next-population]} (evolve population radiation-level immigrant-rate)
         ave-score (fn [xs] (average (map second xs)))
         topn (count top)
         gen-top (take topn scored)
@@ -290,9 +295,11 @@ f (in parallel)."
     (println "    gen ave:" (ave-score scored))
     (println "gen top ave:" (ave-score gen-top))
     (println "    top ave:" (ave-score new-top))
-    (doseq [[kv score] gen-top] (println (kbd/keyvec+score->str kv score)))
+    (println "  best ever:")
+    (println (apply kbd/keyvec+score->str (first new-top)))
+    (doseq [[kv score] gen-top]
+      (println (str "---" (kbd/keyvec+score->str kv score))))
     (recur {:gen (inc gen)
-            :workers workers
             :population next-population
             :top new-top
             :history (conj history (map second gen-top))})))
@@ -303,7 +310,6 @@ f (in parallel)."
         scored (local-fitness pop text)
         top (take topn scored)]
     {:gen 0
-     :workers 0
      :population pop
      :top top
      :history (list (map second top))}))
