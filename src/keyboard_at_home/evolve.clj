@@ -137,22 +137,23 @@ f (in parallel)."
       (log "in-progress-disj found non-1 work units with kvs and id" kvs id ":" unit))
     rest))
 
-
-;; terrible. how should this actually work? can atoms work at all for
-;; this?
+;; external! serve new work.
 (defn get-work [id]
-  (let [hack (atom nil)
-        dispense (fn [{:keys [new] :as work-state}]
+  ;; :new-in-progress in keyboard-work has the keyvecs for this
+  ;; worker. if no work is left, dissoc :new-in-progress so the same
+  ;; work isn't served twice
+  (let [dispense (fn [{:keys [new] :as work-state}]
                    (if-let [kvs (first new)]
-                     (do (reset! hack kvs) ; ugh
-                         (-> work-state
-                             (update :new rest)
-                             (update :in-progress conj
-                                     (in-progress-batch kvs id))))
-                     work-state))]
-    (swap! keyboard-work dispense)
-    @hack))
+                     (-> work-state
+                         (update :new rest)
+                         (update :in-progress conj
+                                 (in-progress-batch kvs id))
+                         (assoc :new-in-progress kvs))
+                     (dissoc work-state :new-in-progress)))
+        new-state (swap! keyboard-work dispense)]
+    (:new-in-progress new-state)))
 
+;; external! save finished work.
 ;; work is [[<kv> <score>] ...]. kvs in original order.
 (defn work-done [id work]
   (let [kvs (map first work)
@@ -160,10 +161,10 @@ f (in parallel)."
                    (-> state
                        (update :in-progress in-progress-disj kvs id)
                        (update :finished into work)))]
-    ;; (println "work is " @keyboard-work)
     (swap! keyboard-work add-done)))
 
-;; frobbify state so workers can display something interesting
+;; external! frobbify state so workers can display something
+;; interesting.
 (defn status []
   "todo")
 
