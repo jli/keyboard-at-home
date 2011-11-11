@@ -1,4 +1,4 @@
-(ns keyboard-sex.core
+(ns keyboard-at-home.core
   (:use [compojure.core]
         [compojure.route :only [resources]]
         [ring.adapter.jetty :only [run-jetty]]
@@ -9,8 +9,8 @@
         [ring.middleware.gzip :only [wrap-gzip]]
         [clojure.tools.cli :only [cli optional]])
   (:require [swank.swank]
-            [keyboard-sex.evolve :as evolve]
-            [keyboard-sex.console-worker :as cworker])
+            [keyboard-at-home.evolve :as evolve]
+            [keyboard-at-home.console-worker :as cworker])
   (:gen-class))
 
 ;; use strings everywhere? bench
@@ -39,7 +39,7 @@
          wrap-params
          wrap-gzip
          ;; hm, doesn't seem to interact well with defonce
-         ;; (wrap-reload '(keyboard-sex.core keyboard-sex.evolve keyboard-sex.kbd keyboard-sex.data))
+         ;; (wrap-reload '(keyboard-at-home.core keyboard-at-home.evolve keyboard-at-home.kbd keyboard-at-home.data))
          wrap-stacktrace))
 
 (defn -main [& args]

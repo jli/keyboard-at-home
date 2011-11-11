@@ -1,6 +1,6 @@
 ;;; details of keyboard representation.
 
-(ns keyboard-sex.kbd)
+(ns keyboard-at-home.kbd)
 
 ;; keyvec: 1d vector of characters
 ;;

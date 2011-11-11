@@ -1,8 +1,8 @@
 ;;; core of genetic algorithm. includes fitness, mutation, and sex.
 
-(ns keyboard-sex.evolve
-  (:require [keyboard-sex.kbd :as kbd]
-            [keyboard-sex.data :as data]
+(ns keyboard-at-home.evolve
+  (:require [keyboard-at-home.kbd :as kbd]
+            [keyboard-at-home.data :as data]
             [clojure.set :as set]))
 
 ;; keyboards have a keyvec, a layout, and a character pair fitness
