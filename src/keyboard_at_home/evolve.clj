@@ -168,6 +168,25 @@ f (in parallel)."
 (defn status []
   "todo")
 
+;; move abandoned work from in-progress to new
+;; add to worker stats?
+;; reap worker stats!
+(defn work-reaper [timeout sleep]
+  (let [too-old (fn [in-progress-batch]
+                  (> (- (now) (:timestamp in-progress-batch))
+                     timeout))
+        reap (fn [{:keys [in-progress] :as work-state}]
+               (let [[reaped still-okay] (filter-split too-old in-progress)]
+                 (if (empty? reaped)
+                   work-state
+                   (do (log "reaped" (count reaped) "work units. ids:" (map :id reaped))
+                       (-> work-state
+                           (update :new concat (map :work reaped))
+                           (assoc :in-progress still-okay))))))]
+    (swap! keyboard-work reap)
+    (Thread/sleep sleep)
+    (recur timeout sleep)))
+
 ;; let the internet share in our love
 ;; rough as hell first cut. I mean, uh, "minimum viable product"
 (defn distributed-fitness [population nworkers]
@@ -290,4 +309,5 @@ f (in parallel)."
      :history (list (map second top))}))
 
 (defn genetic [n topn]
+  (.start (Thread. #(work-reaper work-batch-ttl reaper-period)))
   (genetic-loop (initial-gen n topn data/fitness)))
