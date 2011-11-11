@@ -14,13 +14,13 @@
 ;; across the wire as well as mutate/mate keyvecs. so go for
 ;; compactness and store everything as keyvecs.
 
-;; there are 2 main bits of state:
+;; there are 3 main pieces of state:
 ;;
 ;; * evolution state
 ;; ** generation number
 ;; ** current keyboard population
 ;; ** top n keyboards seen so far
-;; ** (estimated) number of workers
+;; ** (estimated) number of workers (move to worker state?)
 ;; ** history
 ;; *** list of each past generation's top n keyboards
 ;;
@@ -39,16 +39,18 @@
 ;; thx chouser
 (defn pipe [& args] (reduce #(%2 %1) args))
 
+;; don't think this is technically an allowed char :)
 (def | pipe)
 
-(defn update [map k f & args]
+(defn update
+  "Update the map's value for k with f."
+  [map k f & args]
   (apply update-in map [k] f args))
 
-;; like partition, except will return pieces smaller than n and
-;; doesn't leave anything out
-(defn batch [n coll] (partition n n nil coll))
-
-(defn filter-split [pred xs]
+(defn filter-split
+  "Return a pair of seqs. All in the first seq tested true and all in
+  the second tested false via the given pred."
+  [pred xs]
   (reduce (fn [[ts fs] x] (if (pred x)
                             [(conj ts x) fs]
                             [ts (conj fs x)]))
@@ -59,17 +61,20 @@
 (let [random (java.util.Random.)]
   (defn rand-bool [] (.nextBoolean random)))
 
-(defn index [xs] (map-indexed vector xs))
+(defn index
+  "Return a seq that has each element paired with its index (index
+  appears first)."
+  [xs] (map-indexed vector xs))
 
-(defn ppair-with [f xs] (pmap (fn [x] [x (f x)]) xs))
+(defn ppair-with [f xs]
+  "Return a seq with each element paired with the result of applying
+f (in parallel)."
+  (pmap (fn [x] [x (f x)]) xs))
 
 (defn average [xs] (float (/ (apply + xs) (count xs))))
 
-;; thought this (or similar) existed already
-(defn assoc-with [map key val f & args]
-  (assoc map key (apply f (get map key) val args)))
-
 (defn pairwise
+  "Return each pair of elements in the collection."
   ([xs] (pairwise xs []))
   ([xs acc]
      (if-let [x (first xs)]
@@ -165,7 +170,7 @@
 ;; let the internet share in our love
 ;; rough as hell first cut. I mean, uh, "minimum viable product"
 (defn distributed-fitness [population nworkers]
-  (reset! keyboard-work {:new (batch (* 5 (max nworkers 1)) population)
+  (reset! keyboard-work {:new (partition-all (* 5 (max nworkers 1)) population)
                          :in-progress #{}
                          :finished []})
   (let [start (java.util.Date.)
@@ -189,7 +194,7 @@
 (defn sex [kv1 kv2]
   (let [candidate-kv (map (fn [c1 c2] (if (rand-bool) c1 c2))
                           kv1 kv2)
-        key-positions (reduce (fn [keypos [i k]] (assoc-with keypos k i conj))
+        key-positions (reduce (fn [keypos [i k]] (update keypos k conj i))
                               {}
                               (index candidate-kv))
         dupes (filter (fn [[_key positions]] (> (count positions) 1))
