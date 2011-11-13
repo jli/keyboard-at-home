@@ -15,14 +15,10 @@
 
 ;; use strings everywhere? bench
 (defn serial-keyvecs [kvs]
-  (->> kvs
-       (map (partial apply str))
-       prn-str))
+  (prn-str kvs))
 
 (defn deserial-work [workstr]
-  (->> workstr
-       read-string
-       (map (fn [[keystr score]] [(seq keystr) score]))))
+  (read-string workstr))
 
 (defroutes base
   (GET "/work" [id] (response (serial-keyvecs (evolve/get-work id))))

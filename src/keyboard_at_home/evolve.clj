@@ -240,7 +240,7 @@ f (in parallel)."
         (do (println "done! started" start ", now" (now))
             (sort-by second finished))
         (do (println (count in-progress) "in progress," (count new) "undone")
-            (Thread/sleep 1000)
+            (Thread/sleep 3000)
             (recur))))))
 
 ;; for each key position, randomly select a character from one of the
@@ -283,9 +283,9 @@ f (in parallel)."
 
 (defn mutate [kv times]
   (let [mutated-kv (nth (iterate tweak-keyvec kv) times)]
-    mutated-kv))
+    (apply str mutated-kv)))
 
-(defn random-keyvec [] (shuffle kbd/charset))
+(defn random-keyvec [] (apply str (shuffle kbd/charset)))
 
 ;; pop-size (solution) = n
 ;; immigrant-rate = i
