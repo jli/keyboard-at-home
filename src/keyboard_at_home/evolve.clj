@@ -125,7 +125,8 @@ f (in parallel)."
      (* 3 1000))
 
 (defn local-fitness [population text]
-  (sort-by second (ppair-with #(kbd/fitness % text) population)))
+  (sort-by second (ppair-with #(kbd/fitness % text (memfn toLowerCase))
+                              population)))
 
 (defonce keyboard-work (atom nil))
 (defonce worker-stats (atom {}))
