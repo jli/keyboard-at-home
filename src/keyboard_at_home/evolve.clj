@@ -75,6 +75,24 @@ f (in parallel)."
 
 (defn average [xs] (float (/ (apply + xs) (count xs))))
 
+(defn round-up [x] (Math/round (+ x 0.5)))
+
+(defn bounded
+  "Ensure value is between lo and hi (inclusive)."
+  [x lo hi]
+  (max (min x hi) lo))
+
+(defn quad-eq [a b c]
+  (let [discrim-root (Math/sqrt (- (Math/pow b 2)
+                                   (* 4 a c)))
+        soln+ (/ (+ (- b) discrim-root)
+                 2 a)
+        soln- (/ (- (- b) discrim-root)
+                 2 a)]
+    [soln+ soln-]))
+
+(defn dotime [coll] (time (doall coll)))
+
 (defn pairwise
   "Return each pair of elements in the collection."
   ([xs] (pairwise xs []))
@@ -98,11 +116,15 @@ f (in parallel)."
 
 ;;; it's evolution baby
 
-(def work-batch-size 5)
-(def radiation-level 0.01)
-(def immigrant-rate 0.10)
-(def work-batch-ttl (* 15 1000))
-(def reaper-period (* 3 1000))
+(def work-batch-size "number of keyvecs in a batch" 5)
+(def radiation-level "how many mutations keyvecs are subject to" 2)
+(def immigrant-rate "random kbds added to population as a fraction of population" 0.10)
+(def work-batch-ttl "how long a work-batch can be unfinished before reassignment"
+     (* 15 1000))
+(def worker-ttl "how long before a worker is considered dead"
+     (* 120 1000))
+(def reaper-period "how long the reaper sleeps"
+     (* 3 1000))
 
 (defn local-fitness [population text]
   (sort-by second (ppair-with #(kbd/fitness % text) population)))
@@ -126,7 +148,7 @@ f (in parallel)."
 
 (defn add-worker-stats [id n time]
   (swap! worker-stats (fn [stats]
-                        (let [cur (stats id empty-stats)]
+                        (let [cur (get stats id empty-stats)]
                           (assoc stats id (add-stats cur n time))))))
 
 ;; in-progress work units have the keyvecs to be worked on, the id of
@@ -179,22 +201,32 @@ f (in parallel)."
 
 ;; move abandoned work from in-progress to new
 ;; add to worker stats?
-;; reap worker stats!
-(defn work-reaper [timeout sleep]
-  (let [too-old (fn [in-progress-batch]
-                  (> (- (now) (:timestamp in-progress-batch))
-                     timeout))
-        reap (fn [{:keys [in-progress] :as work-state}]
-               (let [[reaped still-okay] (filter-split too-old in-progress)]
-                 (if (empty? reaped)
-                   work-state
-                   (do (log "reaped" (count reaped) "work units. ids:" (map :id reaped))
-                       (-> work-state
-                           (update :new concat (map :work reaped))
-                           (assoc :in-progress still-okay))))))]
-    (swap! keyboard-work reap)
+(defn work-reaper [work-timeout worker-timeout sleep]
+  (let [work-too-old (fn [in-progress-batch]
+                       (> (- (now) (:timestamp in-progress-batch))
+                          work-timeout))
+        reap-work (fn [{:keys [in-progress] :as work-state}]
+                    (let [[reaped still-okay] (filter-split work-too-old in-progress)]
+                      (if (empty? reaped)
+                        work-state
+                        (do (log "reaped" (count reaped) "work units:" (map :id reaped))
+                            (-> work-state
+                                (update :new concat (map :work reaped))
+                                (assoc :in-progress still-okay))))))
+        worker-dead (fn [worker]
+                       (> (- (now) (:pinged worker))
+                          worker-timeout))
+        reap-workers (fn [worker-stats]
+                       (let [dead (->> worker-stats
+                                       (filter (fn [[id stats]] (worker-dead stats)))
+                                       (map first))]
+                         (when-not (empty? dead)
+                           (log "reaped" (count dead) "workers:" dead))
+                         (apply dissoc worker-stats dead)))]
+    (swap! keyboard-work reap-work)
+    (swap! worker-stats reap-workers)
     (Thread/sleep sleep)
-    (recur timeout sleep)))
+    (recur work-timeout worker-timeout sleep)))
 
 ;; let the internet share in our love
 (defn distributed-fitness [population]
@@ -251,38 +283,63 @@ f (in parallel)."
   (let [mutators [rotate rand-swap]]
     ((rand-nth mutators) kv)))
 
-(defn mutate [kv radiation]
-  (let [times (int (* radiation 100))
-        mutated-kv (nth (iterate tweak-keyvec kv) times)]
+(defn mutate [kv times]
+  (let [mutated-kv (nth (iterate tweak-keyvec kv) times)]
     mutated-kv))
 
 (defn random-keyvec [] (shuffle kbd/charset))
+
+;; pop-size (solution) = n
+;; immigrant-rate = i
+;; immigrants = in
+;; parents = n + immigrants = n + in = (i+1)n
+;; children = parents * (parents-1)/2
+;; target-size = parents + children
+;;             = (i+1)n + (i+1)n*((i+1)n - 1) / 2
+;;              = ... = (i^2/2 + i + .5)n^2 + (i+1)/2*n
+;; 0 = (i^2/2 + i + .5)*n^2 + (i+1)/2*n - target-size
+;; solve with quadratic equation
+(defn population-needed
+  "How big does the population need to be for the target size?"
+  [target-size immigrant-rate]
+  (let [a (+ (/ (Math/pow immigrant-rate 2) 2)
+             immigrant-rate
+             0.5)
+        b (/ (inc immigrant-rate) 2)
+        c (- target-size)
+        solns (quad-eq a b c)
+        [soln] (filter pos? solns)]
+    (when soln
+      (round-up soln))))
 
 ;; random immigrants: some percent of original population
 ;; parents: current population + immigrants
 ;; children: each parent mates with all others
 ;; next-gen: parents + children, mutated
-;; n*(n-1)/2 + n + immigrants*n
 ;; new population: top n of next-gen, sorted by fitness
 (defn evolve
-  "Returns a new population of evolved keyboards. radiation [0,1)
-  controls how \"violent\" mutations are. immigrants [0,1] controls
-  how many randoms are added to the population."
-  [population radiation immigrants]
-  (let [immigrant-limit (int (* immigrants (count population)))
-        immigrants (repeatedly immigrant-limit random-keyvec)
+  "Returns a new population of evolved keyboards. radiation (int)
+  controls how many mutations happen. immigrants [0,1] controls how
+  many randoms are added to the population."
+  [population radiation immigrant-rate]
+  (let [immigrants (repeatedly (round-up (* immigrant-rate (count population)))
+                               random-keyvec)
         parents (concat immigrants population)
-        children (time (doall (map (partial apply sex) (pairwise parents))))
-        next-gen (time (doall (map #(mutate % radiation) (concat parents children))))
+        children (dotime (map (partial apply sex) (pairwise parents)))
+        next-gen (dotime (map #(mutate % radiation) (concat parents children)))
         scored (time (distributed-fitness next-gen))
-        next-pop (map first (take (count population) scored))]
+        ;; resize worker population
+        nworkers (count @worker-stats)
+        target-size (* work-batch-size nworkers)
+        pop-needed (bounded (population-needed target-size immigrant-rate) 10 300)
+        next-pop (map first (take pop-needed scored))]
+    (when (not= pop-needed (count population))
+      (log "population size changed from" (count population) "to" pop-needed))
     {:scored scored
      :next-population next-pop}))
 
 (defonce state-atom (atom nil))
 
-;; state has generation number, fitness test data, current population,
-;; top organisms so far, and history of population fitness.
 (defn genetic-loop [{:keys [gen population top history] :as state}]
   (reset! state-atom state)
   (let [{:keys [scored next-population]} (evolve population radiation-level immigrant-rate)
@@ -292,6 +349,7 @@ f (in parallel)."
         new-top (take topn (sort-by second (concat scored top)))]
     (println "======== generation" (inc gen))
     (println "history:" (map average (take 10 history)))
+    (println "   nworkers:" (count @worker-stats))
     (println "    gen ave:" (ave-score scored))
     (println "gen top ave:" (ave-score gen-top))
     (println "    top ave:" (ave-score new-top))
@@ -315,5 +373,5 @@ f (in parallel)."
      :history (list (map second top))}))
 
 (defn genetic [n topn]
-  (.start (Thread. #(work-reaper work-batch-ttl reaper-period)))
+  (.start (Thread. #(work-reaper work-batch-ttl worker-ttl reaper-period)))
   (genetic-loop (initial-gen n topn data/fitness)))
