@@ -245,14 +245,16 @@ f (in parallel)."
                          ;; :finished is a set, in case of duped work
                          :finished #{}})
 
-  (loop []
-    (let [{:keys [start new in-progress finished]} @keyboard-work]
+  (loop [{prev-new :new prev-in-progress :in-progress} nil]
+    (let [{:keys [start new in-progress finished] :as state} @keyboard-work]
       (if (= (count population) (count finished))
         (do (println "done! started" start ", now" (now))
             (sort-by second finished))
-        (do (println (count in-progress) "in progress," (count new) "undone")
+        (do (when (or (not= prev-new new)
+                      (not= prev-in-progress in-progress))
+              (println (count in-progress) "in progress," (count new) "undone"))
             (Thread/sleep 3000)
-            (recur))))))
+            (recur state))))))
 
 ;; for each key position, randomly select a character from one of the
 ;; parents. this can result in duplicate keys and missing keys.
