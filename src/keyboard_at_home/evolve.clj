@@ -129,6 +129,7 @@ f (in parallel)."
 
 (defonce keyboard-work (atom nil))
 (defonce worker-stats (atom {}))
+(defonce evo-state (atom nil))
 
 (def empty-stats {:n 0 :mean 0.
                   :pinged nil ; last-heard-from time
@@ -195,7 +196,16 @@ f (in parallel)."
 ;; external! frobbify state so workers can display something
 ;; interesting.
 (defn status []
-  "todo")
+  (let [{:keys [new in-progress finished]} @keyboard-work
+        {:keys [gen population top history]} @evo-state]
+    {:gen gen
+     :history (map average (take 10 history))
+     :top top
+     :workers (count @worker-stats)
+     :new (* work-batch-size (count new))
+     :in-progress (* work-batch-size (count in-progress))
+     :finished (count finished)
+     }))
 
 ;; move abandoned work from in-progress to new
 ;; add to worker stats?
@@ -336,10 +346,8 @@ f (in parallel)."
     {:scored scored
      :next-population next-pop}))
 
-(defonce state-atom (atom nil))
-
 (defn genetic-loop [{:keys [gen population top history] :as state}]
-  (reset! state-atom state)
+  (reset! evo-state state)
   (let [{:keys [scored next-population]} (evolve population radiation-level immigrant-rate)
         ave-score (fn [xs] (average (map second xs)))
         topn (count top)
