@@ -75,8 +75,6 @@ f (in parallel)."
 
 (defn average [xs] (float (/ (apply + xs) (count xs))))
 
-(defn round-up [x] (Math/round (+ x 0.5)))
-
 (defn bounded
   "Ensure value is between lo and hi (inclusive)."
   [x lo hi]
@@ -310,7 +308,7 @@ f (in parallel)."
         solns (quad-eq a b c)
         [soln] (filter pos? solns)]
     (when soln
-      (round-up soln))))
+      (Math/ceil soln))))
 
 ;; random immigrants: some percent of original population
 ;; parents: current population + immigrants
@@ -322,7 +320,7 @@ f (in parallel)."
   controls how many mutations happen. immigrants [0,1] controls how
   many randoms are added to the population."
   [population radiation immigrant-rate]
-  (let [immigrants (repeatedly (round-up (* immigrant-rate (count population)))
+  (let [immigrants (repeatedly (Math/ceil (* immigrant-rate (count population)))
                                random-keyvec)
         parents (concat immigrants population)
         children (dotime (map (partial apply sex) (pairwise parents)))
