@@ -114,7 +114,7 @@ f (in parallel)."
 
 ;;; it's evolution baby
 
-(def work-batch-size "number of keyvecs in a batch" 5)
+(def work-batch-size "number of keyvecs in a batch" 2)
 (def radiation-level "how many mutations keyvecs are subject to" 2)
 (def immigrant-rate "random kbds added to population as a fraction of population" 0.10)
 (def work-batch-ttl "how long a work-batch can be unfinished before reassignment"
