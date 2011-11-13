@@ -370,6 +370,17 @@ f (in parallel)."
      :top top
      :history (list (map second top))}))
 
+(defonce reaper (atom nil))
+
+(defn start-reaper []
+  (let [start (fn [t]
+                (if (nil? t)
+                  (let [t (Thread. #(work-reaper work-batch-ttl worker-ttl reaper-period))]
+                    (.start t)
+                    t)
+                  (do (log "reaper already running") t)))]
+    (swap! reaper start)))
+
 (defn genetic [n topn]
-  (.start (Thread. #(work-reaper work-batch-ttl worker-ttl reaper-period)))
+  (start-reaper)
   (genetic-loop (initial-gen n topn data/fitness)))
