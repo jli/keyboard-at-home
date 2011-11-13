@@ -58,7 +58,8 @@
   (log "getting work...")
   (let [batch (get-work-loop addr id)
         fitted (time (doall
-                      (map (fn [kv] [kv (kbd/fitness kv data/fitness)])
+                      (map (fn [kv] [kv (kbd/fitness kv data/fitness
+                                                     #(.toLowerCase %))])
                            batch)))]
     (log "submitting" (count fitted) fitted)
     (submit-work addr id fitted)

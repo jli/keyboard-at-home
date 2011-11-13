@@ -23,14 +23,20 @@
            col (range ncols)]
        [row col]))
 
+;; gack, cljs doesn't have case yet
 (defn position->finger [[row col]]
   (let [hand (if (<= col 4) :left :right)
-        digit (case col
-                    (0 9 10) :pinky
-                    (1 8) :ring
-                    (2 7) :salute
-                    (3 6) :index
-                    (4 5) :index-stretch)]
+        ;; digit (case col
+        ;;             (0 9 10) :pinky
+        ;;             (1 8) :ring
+        ;;             (2 7) :salute
+        ;;             (3 6) :index
+        ;;             (4 5) :index-stretch)
+        digit (cond (#{0 9 10} col) :pinky
+                    (#{1 8} col) :ring
+                    (#{2 7} col) :salute
+                    (#{3 6} col) :index
+                    (#{4 5} col) :index-stretch)]
     [hand digit]))
 
 (defn char->position+finger [layout char]
@@ -78,11 +84,8 @@
       \_ \-
       \: \;})
 
-(defn symbol-downcase [c]
-  (get symbol-downcase-map c c))
-
-(defn downcase [str]
-  (map symbol-downcase (.toLowerCase str)))
+(defn symbol-downcase [str]
+  (map #(get symbol-downcase-map % %) str))
 
 
 
@@ -92,15 +95,23 @@
 ;; reward home row
 (defn finger-strength-cost [[row _col hand digit]]
   (let [hand-cost (if (= hand :left) 1 0)
-        digit-cost (case digit
-                         (:index :salute) 1
-                         :ring 2
-                         :pinky 3
-                         :index-stretch 4)
-        position-cost (case row
-                            0 2
-                            1 0
-                            2 3)]
+        ;; no case is cljs yet!
+        ;; digit-cost (case digit
+        ;;                  (:index :salute) 1
+        ;;                  :ring 2
+        ;;                  :pinky 3
+        ;;                  :index-stretch 4)
+        ;; position-cost (case row
+        ;;                     0 2
+        ;;                     1 0
+        ;;                     2 3)
+        digit-cost (cond (#{:index :salute} digit) 1
+                         (= :ring digit) 2
+                         (= :pinky digit) 3
+                         (= :index-stretch digit) 4)
+        position-cost (cond (= 0 row) 2
+                            (= 1 row) 0
+                            (= 2 row) 3)]
     (+ hand-cost digit-cost position-cost)))
 
 
@@ -167,18 +178,22 @@
         a (str a "     " score)]
     (apply str (interpose "\n" [a b c]))))
 
-(defn fitness [kv text]
+;; lowercase because different between clojure and clojurescript...
+;; could also apply in data.
+(defn fitness [kv text lowercase]
   ;; unknown char pairs get 0 cost
   (let [chars-fitness (keyvec->chars-fitness kv)
         cost #(get chars-fitness % 0)]
     (reduce (fn [acc cs] (+ acc (cost cs)))
             0
-            (partition 2 1 (downcase text)))))
+            (partition 2 1 (symbol-downcase (lowercase text))))))
 
-(defn test-fitness [kv text]
+(defn test-fitness [kv text lowercase]
   (let [chars-fitness (keyvec->chars-fitness kv)
         cost #(get chars-fitness % 0)
-        pairscores (map #(vector % (cost %)) (partition 2 1 (downcase text)))]
+        pairscores (map #(vector % (cost %))
+                        (partition 2 1 (symbol-downcase (lowercase text))))]
     (doseq [[pair score] pairscores]
       (println pair score))
     (println (apply + (map second pairscores)))))
+
