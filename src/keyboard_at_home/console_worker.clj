@@ -1,7 +1,6 @@
 (ns keyboard-at-home.console-worker
   (:use [clojure.tools.cli :only [cli optional]])
-  (:require [keyboard-at-home.evolve :as evolve]
-            [keyboard-at-home.kbd :as kbd]
+  (:require [keyboard-at-home.kbd :as kbd]
             [keyboard-at-home.data :as data]
             [clj-http.client :as client]))
 
