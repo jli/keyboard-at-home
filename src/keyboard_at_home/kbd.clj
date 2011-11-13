@@ -180,19 +180,19 @@
 
 ;; lowercase because different between clojure and clojurescript...
 ;; could also apply in data.
-(defn fitness [kv text lowercase]
+(defn fitness [kv text]
   ;; unknown char pairs get 0 cost
   (let [chars-fitness (keyvec->chars-fitness kv)
         cost #(get chars-fitness % 0)]
     (reduce (fn [acc cs] (+ acc (cost cs)))
             0
-            (partition 2 1 (symbol-downcase (lowercase text))))))
+            (partition 2 1 text))))
 
 (defn test-fitness [kv text lowercase]
   (let [chars-fitness (keyvec->chars-fitness kv)
         cost #(get chars-fitness % 0)
         pairscores (map #(vector % (cost %))
-                        (partition 2 1 (symbol-downcase (lowercase text))))]
+                        (partition 2 1 text))]
     (doseq [[pair score] pairscores]
       (println pair score))
     (println (apply + (map second pairscores)))))

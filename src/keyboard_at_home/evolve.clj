@@ -125,7 +125,7 @@ f (in parallel)."
      (* 3 1000))
 
 (defn local-fitness [population text]
-  (sort-by second (ppair-with #(kbd/fitness % text (memfn toLowerCase))
+  (sort-by second (ppair-with #(kbd/fitness % text)
                               population)))
 
 (defonce keyboard-work (atom nil))
@@ -392,6 +392,8 @@ f (in parallel)."
                   (do (log "reaper already running") t)))]
     (swap! reaper start)))
 
+(def fitness-data (kbd/symbol-downcase (.toLowerCase data/fitness)))
+
 (defn genetic [n topn]
   (start-reaper)
-  (genetic-loop (initial-gen n topn data/fitness)))
+  (genetic-loop (initial-gen n topn fitness-data)))

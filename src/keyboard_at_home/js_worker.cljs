@@ -10,7 +10,7 @@
               [cljs.reader :as reader]
               [keyboard-at-home.kbd :as kbd]
               ;; weird cljs-watch badness
-              ;; [keyboard-at-home.data :as data]
+              [keyboard-at-home.data :as data]
               ))
 
 ;;; util
@@ -90,11 +90,11 @@
   {:n (+ n batch-size)
    :mean-time (new-mean n mean-time batch-size time)})
 
+(def fitness-data (kbd/symbol-downcase (. data/fitness (toLowerCase))))
+
 (defn compute-batch [id batch]
-  ;; data/fitness
   (let [start (now)
-        work (doall (map (fn [kv] [kv (kbd/fitness kv "hey just a test string for now"
-                                                   #(. % (toLowerCase)))])
+        work (doall (map (fn [kv] [kv (kbd/fitness kv fitness-data)])
                          batch))
         stop (now)
         time (- stop start)

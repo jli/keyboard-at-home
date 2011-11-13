@@ -53,13 +53,14 @@
           (log "yay, refreshed and trying again")
           (recur addr id)))))
 
+(def fitness-data (kbd/symbol-downcase (.toLowerCase data/fitness)))
+
 (defn work-loop [addr id]
   (print-status addr)
   (log "getting work...")
   (let [batch (get-work-loop addr id)
         fitted (time (doall
-                      (map (fn [kv] [kv (kbd/fitness kv data/fitness
-                                                     #(.toLowerCase %))])
+                      (map (fn [kv] [kv (kbd/fitness kv fitness-data)])
                            batch)))]
     (log "submitting" (count fitted) fitted)
     (submit-work addr id fitted)
