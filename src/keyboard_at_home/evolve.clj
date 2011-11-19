@@ -357,7 +357,7 @@ f (in parallel)."
         ave-score (fn [xs] (average (map second xs)))
         topn (count top)
         gen-top (take topn scored)
-        new-top (take topn (sort-by second (concat scored top)))]
+        new-top (take topn (sort-by second (set (concat scored top))))]
     (println "======== generation" (inc gen))
     (println "history:" (map average (take 10 history)))
     (println "   nworkers:" (count @worker-stats))
