@@ -50,8 +50,7 @@
   (let [[row0 next] (split-at 11 keys)
         [row1 row2] (split-at 11 next)
         tostr #(apply str (interpose \space %))]
-    (format "%s\n%s\n%s"
-            (tostr row0) (tostr row1) (tostr row2))))
+    (str (tostr row0) "\n" (tostr row1) "\n" (tostr row2))))
 
 ;; lie: - moved down into /'s position
 (def qwerty-keyvec

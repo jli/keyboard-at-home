@@ -61,24 +61,35 @@
 
 (defn render-progress-bar [finished in-progress new]
   (apply str (concat (repeat finished "=")
-                     (repeat (+ new in-progress) "-"))))
+                     (repeat in-progress "+")
+                     (repeat new "-"))))
+
+(defn render-history [hist]
+  (apply str (interpose \→ (reverse hist))))
+
+(defn render-kbd+score [[kbd score]]
+  (node "pre" nil (kbd/keyvec+score->str kbd score)))
 
 (defn render-status [{:keys [gen history top workers new in-progress finished]}
                      worker?]
   (let [{:keys [n mean-time]} @stats
-        progress-bar (render-progress-bar finished in-progress new)]
+        progress-bar (render-progress-bar finished in-progress new)
+        top-kbds (map render-kbd+score top)]
     (node "div" nil
-          (node "span" nil "gen " (str gen))
+          (node "span" nil "generation: " (str gen))
           (html "<br>")
-          (node "span" nil "workers " (str workers))
+          (node "span" nil "# workers: " (str workers))
           (html "<br>")
-          (node "span" nil "new " (str new))
-          (html "<br>")
-          (node "span" nil "in-progress " (str in-progress))
-          (html "<br>")
-          (node "span" nil "finished " (str finished))
+          (node "span" nil "finished/in-progress/new: "
+                (str finished) "/" (str in-progress) "/" (str new))
           (html "<br>")
           (node "span" (js* "{\"style\": \"font-family: monospace\"}") progress-bar)
+          (html "<br>")
+          ;; todo: sparklines here!
+          (node "span" nil "ave. score for previous 5 generations: "
+                (render-history (take 5 history)))
+          (html "<br>top keyboards so far:<br>")
+          (apply node "div" nil top-kbds)
           (html "<br>")
           (when worker?
             (node "span" nil "boards done " (str n))
