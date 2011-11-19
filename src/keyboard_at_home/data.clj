@@ -609,4 +609,4 @@
      and said : `` Take my hand , Louise ; ; a stranger in paradise
      ''.")
 
-(def fitness (str brown-humor2 brown-humor1 brown-scifi1))
+(def ^:export fitness (str brown-humor2 brown-humor1 brown-scifi1))
