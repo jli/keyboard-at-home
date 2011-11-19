@@ -59,27 +59,28 @@
 
 (def stats (atom {:n 0 :mean-time 0}))
 
-(defn render-status [{:keys [gen history top workers new in-progress finished]}]
+(defn render-status [{:keys [gen history top workers new in-progress finished]}
+                     worker?]
   (let [{:keys [n mean-time]} @stats]
-   (node "div" nil
-         (node "span" nil "gen " (str gen))
-         (html "<br>")
-         (node "span" nil "workers " (str workers))
-         (html "<br>")
-         (node "span" nil "new " (str new))
-         (html "<br>")
-         (node "span" nil "in-progress " (str in-progress))
-         (html "<br>")
-         (node "span" nil "finished " (str finished))
-         (html "<br>")
-         (node "span" nil "boards done " (str n))
-         (html "<br>")
-         (node "span" nil "average compute time " (str (/ mean-time 1000)) "s")
-         )))
+    (node "div" nil
+          (node "span" nil "gen " (str gen))
+          (html "<br>")
+          (node "span" nil "workers " (str workers))
+          (html "<br>")
+          (node "span" nil "new " (str new))
+          (html "<br>")
+          (node "span" nil "in-progress " (str in-progress))
+          (html "<br>")
+          (node "span" nil "finished " (str finished))
+          (html "<br>")
+          (when worker?
+            (node "span" nil "boards done " (str n))
+            (html "<br>")
+            (node "span" nil "average compute time " (str (/ mean-time 1000)) "s")))))
 
-(defn update-status [status]
+(defn update-status [status worker?]
   (dom/removeChildren status-node)
-  (dom/appendChild status-node (render-status status)))
+  (dom/appendChild status-node (render-status status worker?)))
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
@@ -107,20 +108,49 @@
             )]
     (submit-work id work k)))
 
+(def working? (atom false))
+
 (defn work-loop [id]
-  (let [work (fn [e]
-               (let [batch (event->clj e)]
-                 (if-not (empty? batch)
-                   (do (log "got " (count batch) " kbds")
-                       (compute-batch id batch))
-                   (do (log "no work available")
-                       (Timer/callOnce #(work-loop id) 1500)))))
-        status (fn [e]
-                 (update-status (event->clj e))
-                 (Xhr/send (work-url id) work))]
-    (Xhr/send status-url status)))
+  (when @working?
+    (let [work (fn [e]
+                 (let [batch (event->clj e)]
+                   (if-not (empty? batch)
+                     (do (log "got " (count batch) " kbds")
+                         (compute-batch id batch))
+                     (do (log "no work available")
+                         (Timer/callOnce #(work-loop id) 1500)))))
+          status (fn [e]
+                   (update-status (event->clj e) true)
+                   (when @working?
+                     (Xhr/send (work-url id) work)))]
+      (Xhr/send status-url status))))
 
 (defn ^:export thundercats-are-go []
   (let [id (rand-string 8)]
     (log "worker " id " starting up")
     (work-loop id)))
+
+(def join-button (dom/getElement "join"))
+
+(defn ^:export thundercats-are-spectating
+  ([] (thundercats-are-spectating 1000))
+  ([interval]
+     (let [timer (goog.Timer. interval)
+           status (fn [] (Xhr/send status-url
+                                   #(update-status (event->clj %) false)))
+           work-toggle (fn []
+                         (if @working?
+                           (do (reset! working? false)
+                               (log "thanks for your efforts!")
+                               (dom/setTextContent join-button "join!")
+                               (. timer (start)))
+                           (do (reset! working? true)
+                               (. timer (stop))
+                               (dom/setTextContent join-button "leave!")
+                               (thundercats-are-go))))]
+       ;; status update loop
+       (log "you're tuning in live!")
+       (events/listen timer goog.Timer/TICK status)
+       (. timer (start))
+       ;; join the working force
+       (events/listen join-button events/EventType.CLICK work-toggle))))
