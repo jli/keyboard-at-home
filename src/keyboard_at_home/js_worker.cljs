@@ -23,7 +23,7 @@
     (js* "alert(~{msg})")))
 
 (defn log [& args]
-  (let [msg (apply str (goog.date.DateTime.) args)]
+  (let [msg (apply str (goog.date.DateTime.) ": " args)]
     (dom/setTextContent (dom/getElement "output") msg)))
 
 (defn now [] (goog.date.DateTime.))
