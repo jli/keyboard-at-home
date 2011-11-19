@@ -59,9 +59,14 @@
 
 (def stats (atom {:n 0 :mean-time 0}))
 
+(defn render-progress-bar [finished in-progress new]
+  (apply str (concat (repeat finished "=")
+                     (repeat (+ new in-progress) "-"))))
+
 (defn render-status [{:keys [gen history top workers new in-progress finished]}
                      worker?]
-  (let [{:keys [n mean-time]} @stats]
+  (let [{:keys [n mean-time]} @stats
+        progress-bar (render-progress-bar finished in-progress new)]
     (node "div" nil
           (node "span" nil "gen " (str gen))
           (html "<br>")
@@ -72,6 +77,8 @@
           (node "span" nil "in-progress " (str in-progress))
           (html "<br>")
           (node "span" nil "finished " (str finished))
+          (html "<br>")
+          (node "span" (js* "{\"style\": \"font-family: monospace\"}") progress-bar)
           (html "<br>")
           (when worker?
             (node "span" nil "boards done " (str n))
