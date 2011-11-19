@@ -70,11 +70,10 @@
 (defn render-kbd+score [[kbd score]]
   (node "pre" nil (kbd/keyvec+score->str kbd score)))
 
-(defn render-status [{:keys [gen history top workers new in-progress finished]}
+(defn render-status [{:keys [gen history top prev-gen-top
+                             workers new in-progress finished]}
                      worker?]
-  (let [{:keys [n mean-time]} @stats
-        progress-bar (render-progress-bar finished in-progress new)
-        top-kbds (map render-kbd+score top)]
+  (let [{:keys [n mean-time]} @stats]
     (node "div" nil
           (node "span" nil "generation: " (str gen))
           (html "<br>")
@@ -83,13 +82,22 @@
           (node "span" nil "finished/in-progress/new: "
                 (str finished) "/" (str in-progress) "/" (str new))
           (html "<br>")
-          (node "span" (js* "{\"style\": \"font-family: monospace\"}") progress-bar)
+          (node "span" (js* "{\"style\": \"font-family: monospace\"}")
+                (render-progress-bar finished in-progress new))
           (html "<br>")
           ;; todo: sparklines here!
           (node "span" nil "ave. score for previous 5 generations: "
                 (render-history (take 5 history)))
-          (html "<br>top keyboards so far:<br>")
-          (apply node "div" nil top-kbds)
+          ;; needs srs work
+          (node "table" (js* "{\"style\": \"border: solid thin;\"}")
+                (node "tr" nil
+                      (node "td" nil (html "top keyboards from<br>previous generation:"))
+                      (node "td" nil (html "top keyboards ever:")))
+                (node "tr" nil
+                      (node "td" nil
+                            (apply node "div" nil (map render-kbd+score prev-gen-top)))
+                      (node "td" nil
+                            (apply node "div" nil (map render-kbd+score top)))))
           (html "<br>")
           (when worker?
             (node "span" nil "boards done " (str n))

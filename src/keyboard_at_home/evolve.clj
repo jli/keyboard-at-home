@@ -200,10 +200,11 @@ f (in parallel)."
 ;; interesting.
 (defn status []
   (let [{:keys [new in-progress finished]} @keyboard-work
-        {:keys [gen population top history]} @evo-state]
+        {:keys [gen population top prev-top-gen history]} @evo-state]
     {:gen gen
      :history (map average (take 10 history))
      :top top
+     :prev-top-gen prev-top-gen
      :workers (count @worker-stats)
      :new (* work-batch-size (count new))
      :in-progress (* work-batch-size (count in-progress))
@@ -371,6 +372,7 @@ f (in parallel)."
     (recur {:gen (inc gen)
             :population next-population
             :top new-top
+            :prev-gen-top gen-top
             :history (conj history (map second gen-top))})))
 
 (defn initial-gen [n topn text]
@@ -381,6 +383,7 @@ f (in parallel)."
     {:gen 0
      :population pop
      :top top
+     :prev-gen-top nil
      :history (list (map second top))}))
 
 (defonce reaper (atom nil))
