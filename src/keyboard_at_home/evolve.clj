@@ -158,16 +158,23 @@ f (in parallel)."
    :id id
    :timestamp (now)})
 
-(defn in-progress-disj [in-progress-coll kvs id]
-  (let [[unit rest] (filter-split #(and (= (:id %) id)
+;; used to update keyboard-work when we get completed work
+(defn in-progress->finished [{:keys [in-progress finished] :as state} id work]
+  (let [kvs (map first work)
+        [unit rest] (filter-split #(and (= (:id %) id)
                                         (= (:work %) kvs))
-                                  in-progress-coll)]
-    (if (= (count unit) 1)
+                                  in-progress)]
+    (if (= (count unit) 1) ; expected case
       (let [unit (first unit)
             time (- (now) (:timestamp unit))]
-        (add-worker-stats id (count (:work unit)) time))
-      (log "in-progress-disj found non-1 work units with kvs and id" kvs id ":" unit))
-    rest))
+        (add-worker-stats id (count (:work unit)) time)
+        (assoc state :in-progress rest, :finished (into finished work)))
+      (do ;; if unit count = 0, can be because client was slow and
+          ;; sent a work unit that got reaped and completed by someone
+          ;; else. if unit count > 1, pretty weird bug...
+        (log "in-progress->finished found non-1 work units with kvs and id" kvs id ":" unit)
+        ;; don't change anything
+        state))))
 
 ;; external! serve new work.
 (defn get-work [id]
@@ -187,12 +194,7 @@ f (in parallel)."
 ;; external! save finished work.
 ;; work is [[<kv> <score>] ...]. kvs in original order.
 (defn work-done [id work]
-  (let [kvs (map first work)
-        add-done (fn [state]
-                   (-> state
-                       (update :in-progress in-progress-disj kvs id)
-                       (update :finished into work)))]
-    (swap! keyboard-work add-done)))
+  (swap! keyboard-work (fn [state] (in-progress->finished state id work))))
 
 ;; external! frobbify state so workers can display something
 ;; interesting.
@@ -218,7 +220,7 @@ f (in parallel)."
                     (let [[reaped still-okay] (filter-split work-too-old in-progress)]
                       (if (empty? reaped)
                         work-state
-                        (do (log "reaped" (count reaped) "work units:" (map :id reaped))
+                        (do (log "reaped" (count reaped) "work units:" reaped)
                             (-> work-state
                                 (update :new concat (map :work reaped))
                                 (assoc :in-progress still-okay))))))
@@ -365,7 +367,7 @@ f (in parallel)."
     (println "  best ever:")
     (println (apply kbd/keyvec+score->str (first new-top)))
     (doseq [[kv score] gen-top]
-      (println (str "---" (kbd/keyvec+score->str kv score))))
+      (println (str "---\n" (kbd/keyvec+score->str kv score))))
     (recur {:gen (inc gen)
             :population next-population
             :top new-top
