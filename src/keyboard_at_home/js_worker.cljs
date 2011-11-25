@@ -104,9 +104,14 @@
             (html "<br>")
             (node "span" nil "average compute time " (str (/ mean-time 1000)) "s")))))
 
+;; don't update when nothing new
+(def last-status (atom nil))
+
 (defn update-status [status worker?]
-  (dom/removeChildren status-node)
-  (dom/appendChild status-node (render-status status worker?)))
+  (when (not= @last-status status)
+    (reset! last-status status)
+    (dom/removeChildren status-node)
+    (dom/appendChild status-node (render-status status worker?))))
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
