@@ -27,8 +27,7 @@
   (GET "/status" [] (response (prn-str (evolve/status))))
   (GET "/love" [] (response "<3"))
   (GET "/" [] (file-response "resources/public/index.html"))
-  (resources "/")
-  (ANY "*" [] (file-response "resources/public/index.html")))
+  (resources "/"))
 
 (def app
      (-> base
