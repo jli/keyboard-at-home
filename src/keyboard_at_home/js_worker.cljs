@@ -73,13 +73,13 @@
 ;; loose cljs translation of http://ejohn.org/projects/jspark/
 (defn render-sparklines [parent vals]
   (let [vals (js->clj vals)
-        canvas (node "canvas" nil)
+        canvas (node "canvas" (js* "{\"style\": \"background-color: #fafafa;\"}"))
         ctx (.getContext canvas "2d")
         minv (apply min vals)
         maxv (apply max vals)
         stretch-factor 5
         w (* stretch-factor (count vals))
-        h (atom "1em")]
+        h (atom "1.5em")]
     (set! (.. parent style display) "inline")
     (set! (.. canvas style width) w)
     (set! (.. canvas style height) @h)
@@ -118,8 +118,9 @@
           (node "span" nil "ave. score for previous 5 generations: "
                 (render-history (take 5 history)))
           (html "<br>")
-          (node "span" (js* "{\"id\": ~{spark-id}}"))
-          (html "<br>")
+          (node "div" nil "scores for all " (str (count history)) " generations: "
+                (node "span" (js* "{\"id\": ~{spark-id}}")))
+          (html "<p>")
           ;; needs srs work
           (node "table" (js* "{\"style\": \"border: solid thin;\"}")
                 (node "tr" nil
