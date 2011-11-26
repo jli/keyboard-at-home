@@ -202,7 +202,7 @@ f (in parallel)."
   (let [{:keys [new in-progress finished]} @keyboard-work
         {:keys [gen population top prev-gen-top history]} @evo-state]
     {:gen gen
-     :history (map average (take 10 history))
+     :history (map average history)
      :top top
      :prev-gen-top prev-gen-top
      :workers (count @worker-stats)

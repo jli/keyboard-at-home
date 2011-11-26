@@ -70,6 +70,36 @@
 (defn render-kbd+score [[kbd score]]
   (node "pre" nil (kbd/keyvec+score->str kbd score)))
 
+;; loose cljs translation of http://ejohn.org/projects/jspark/
+(defn render-sparklines [parent vals]
+  (let [vals (js->clj vals)
+        canvas (node "canvas" nil)
+        ctx (.getContext canvas "2d")
+        minv (apply min vals)
+        maxv (apply max vals)
+        stretch-factor 5
+        w (* stretch-factor (count vals))
+        h (atom "1em")]
+    (set! (.. parent style display) "inline")
+    (set! (.. canvas style width) w)
+    (set! (.. canvas style height) @h)
+    (set! (.width canvas) w)
+    (dom/appendChild parent canvas)
+    (reset! h (.offsetHeight canvas))
+    (set! (.height canvas) @h)
+    (set! (.strokeStyle ctx) "red")
+    (set! (.lineWidth ctx) 1.5)
+    (. ctx (beginPath))
+    (doseq [[v i] (map vector vals (range))]
+      (let [x (* i (/ w (count vals)))
+            y (- @h (* @h (/ (- v minv)
+                             (- maxv minv))))]
+        (when (zero? i) (.moveTo ctx x y))
+        (.lineTo ctx x y)))
+    (. ctx (stroke))))
+
+(def spark-id "sparkspan")
+
 (defn render-status [{:keys [gen history top prev-gen-top
                              workers new in-progress finished]}
                      worker?]
@@ -85,9 +115,11 @@
           (node "span" (js* "{\"style\": \"font-family: monospace\"}")
                 (render-progress-bar finished in-progress new))
           (html "<br>")
-          ;; todo: sparklines here!
           (node "span" nil "ave. score for previous 5 generations: "
                 (render-history (take 5 history)))
+          (html "<br>")
+          (node "span" (js* "{\"id\": ~{spark-id}}"))
+          (html "<br>")
           ;; needs srs work
           (node "table" (js* "{\"style\": \"border: solid thin;\"}")
                 (node "tr" nil
@@ -111,7 +143,11 @@
   (when (not= @last-status status)
     (reset! last-status status)
     (dom/removeChildren status-node)
-    (dom/appendChild status-node (render-status status worker?))))
+    (dom/appendChild status-node (render-status status worker?))
+    ;; needs to happen after status-node is added to dom, in order to
+    ;; get size of inline canvas
+    (render-sparklines (dom/getElement spark-id) (reverse (:history status)))))
+
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
