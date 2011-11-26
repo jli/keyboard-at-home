@@ -200,11 +200,11 @@ f (in parallel)."
 ;; interesting.
 (defn status []
   (let [{:keys [new in-progress finished]} @keyboard-work
-        {:keys [gen population top prev-top-gen history]} @evo-state]
+        {:keys [gen population top prev-gen-top history]} @evo-state]
     {:gen gen
      :history (map average (take 10 history))
      :top top
-     :prev-top-gen prev-top-gen
+     :prev-gen-top prev-gen-top
      :workers (count @worker-stats)
      :new (* work-batch-size (count new))
      :in-progress (* work-batch-size (count in-progress))
