@@ -72,8 +72,7 @@
 
 ;; loose cljs translation of http://ejohn.org/projects/jspark/
 (defn render-sparklines [parent vals]
-  (let [vals (js->clj vals)
-        canvas (node "canvas" (js* "{\"style\": \"background-color: #fafafa;\"}"))
+  (let [canvas (node "canvas" (js* "{\"style\": \"background-color: #fafafa;\"}"))
         ctx (.getContext canvas "2d")
         minv (apply min vals)
         maxv (apply max vals)
@@ -85,18 +84,18 @@
     (set! (.. canvas style height) @h)
     (set! (.width canvas) w)
     (dom/appendChild parent canvas)
-    (reset! h (.offsetHeight canvas))
-    (set! (.height canvas) @h)
-    (set! (.strokeStyle ctx) "red")
-    (set! (.lineWidth ctx) 1.5)
-    (. ctx (beginPath))
-    (doseq [[v i] (map vector vals (range))]
-      (let [x (* i (/ w (count vals)))
-            y (- @h (* @h (/ (- v minv)
-                             (- maxv minv))))]
-        (when (zero? i) (.moveTo ctx x y))
-        (.lineTo ctx x y)))
-    (. ctx (stroke))))
+    (let [offh (.offsetHeight canvas)]
+      (set! (.height canvas) offh)
+      (set! (.strokeStyle ctx) "red")
+      (set! (.lineWidth ctx) 1.5)
+      (. ctx (beginPath))
+      (doseq [[v i] (map vector vals (range))]
+        (let [x (* i (/ w (count vals)))
+              y (- offh (* offh (/ (- v minv)
+                                   (- maxv minv))))]
+          (when (zero? i) (.moveTo ctx x y))
+          (.lineTo ctx x y)))
+      (. ctx (stroke)))))
 
 (def spark-id "sparkspan")
 
@@ -152,7 +151,6 @@
     ;; needs to happen after status-node is added to dom, in order to
     ;; get size of inline canvas
     (render-sparklines (dom/getElement spark-id) (reverse (:history status)))))
-
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
@@ -213,9 +211,9 @@
            work-toggle (fn []
                          (if @working?
                            (do (reset! working? false)
-                               (log "thanks for your efforts!")
+                               (. timer (start))
                                (dom/setTextContent join-button "join!")
-                               (. timer (start)))
+                               (log "thanks for your efforts!"))
                            (do (reset! working? true)
                                (. timer (stop))
                                (dom/setTextContent join-button "leave!")
