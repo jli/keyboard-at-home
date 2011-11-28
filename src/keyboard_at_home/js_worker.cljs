@@ -62,9 +62,13 @@
 (def stats (atom {:n 0 :mean-time 0}))
 
 (defn render-progress-bar [finished in-progress new]
-  (apply str (concat (repeat finished "=")
-                     (repeat in-progress "+")
-                     (repeat new "-"))))
+  ;; use about 50 chars
+  (let [scale (/ 50.0 (+ finished in-progress new))
+        [finished in-progress new] (map (partial * scale)
+                                        [finished in-progress new])]
+   (apply str (concat (repeat finished "=")
+                      (repeat in-progress "+")
+                      (repeat new "-")))))
 
 (defn render-history [hist]
   (apply str (interpose \→ (reverse hist))))
