@@ -9,6 +9,7 @@ Brown corpus: https://nltk.googlecode.com/svn/trunk/nltk_data/packages/corpora/b
 
 Artisinal filler text: http://hipsteripsum.me/
 
+John Resig's sparklines: http://ejohn.org/projects/jspark/
 
 ## License
 
