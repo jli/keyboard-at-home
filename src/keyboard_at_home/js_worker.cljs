@@ -141,8 +141,8 @@
           ;; needs srs work
           (node "table" (js* "{\"style\": \"border: solid thin;\"}")
                 (node "tr" nil
-                      (node "td" nil (html "top keyboards from<br>previous generation:"))
-                      (node "td" nil (html "top keyboards ever:")))
+                      (node "td" nil (html "best from<br>previous generation:"))
+                      (node "td" nil (html "best from<br>current simulation:")))
                 (node "tr" nil
                       (node "td" nil
                             (apply node "div" nil (map render-kbd+score prev-gen-top)))
