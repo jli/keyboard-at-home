@@ -17,6 +17,10 @@
 
 (defn index [coll] (map-indexed vector coll))
 
+(defn radix-sort [keys maps]
+  (reduce (fn [maps k] (sort-by k maps))
+          maps (reverse keys)))
+
 (def html dom/htmlToDocumentFragment)
 (def node dom/createDom)
 
@@ -44,12 +48,14 @@
     (apply str (repeatedly n hex-str))))
 
 (def status-node (dom/getElement "status"))
+(def global-status-node (dom/getElement "global-status"))
 
 
 
 ;;; protocol
 
 (def status-url "/status")
+(def global-status-url "/global-status")
 (defn work-url [id] (str "/work?id=" id))
 (def done-url "/done")
 
@@ -105,11 +111,13 @@
 
 (def spark-id "sparkspan")
 
+;; true horror
 (defn render-status [{:keys [gen params history top prev-gen-top
                              workers new in-progress finished]}
                      worker?]
   (let [{:keys [n mean-time]} @stats]
     (node "div" nil
+          (node "h2" nil "current evolution status")
           (node "span" nil "generation: " (str gen))
           (html "<br>")
           (node "span" nil "radiation level: " (str (:radiation-level params)))
@@ -146,17 +154,56 @@
             (html "<br>")
             (node "span" nil "average compute time " (str (/ mean-time 1000)) "s")))))
 
+(defn params+index->spark-id [{:keys [radiation-level immigrant-rate]} i]
+  (str "spark-r" radiation-level "-i" immigrant-rate "-" i))
+
+;; true horror
+(defn render-global-status [status]
+  (node "div" nil
+        (node "h2" nil "global evolution history")
+        (apply node "table" (js* "{\"style\": \"border: solid thin;\"}")
+               (mapcat (fn [[{:keys [radiation-level immigrant-rate] :as params} histories]]
+                         [(node "tr" nil
+                                (node "td" nil
+                                      "radiation: " (str radiation-level)
+                                      ", immigrants: " (str immigrant-rate))
+                                (apply node "td" nil
+                                       (map (fn [i]
+                                              (let [id (params+index->spark-id params i)]
+                                                (node "div" (js* "{\"id\": ~{id}}"))))
+                                            (range (count histories)))))])
+                       status))))
+
 ;; don't update when nothing new
 (def last-status (atom nil))
+(def last-params (atom nil))
+;; global changed if current evo params not= last-params
+(def global-changed? (atom false))
 
 (defn update-status [status worker?]
   (when (not= @last-status status)
     (reset! last-status status)
+    (when (not= @last-params (:params status))
+      (reset! global-changed? true)
+      (reset! last-params (:params status)))
     (dom/removeChildren status-node)
     (dom/appendChild status-node (render-status status worker?))
     ;; needs to happen after status-node is added to dom, in order to
     ;; get size of inline canvas
     (render-sparklines (dom/getElement spark-id) (reverse (:history status)))))
+
+(defn update-global-status [status]
+  (let [status (radix-sort [(comp :radiation-level first)
+                            (comp :immigrant-rate first)] status)]
+    (when @global-changed?
+      (log "global changed")
+      (reset! global-changed? false)
+      (dom/removeChildren global-status-node)
+      (dom/appendChild global-status-node (render-global-status status))
+      (doseq [[params histories] status
+              [i history] (index histories)]
+        (let [div (dom/getElement (params+index->spark-id params i))]
+          (render-sparklines div (reverse history)))))))
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
@@ -205,9 +252,12 @@
 (def join-button (dom/getElement "join"))
 
 (defn ^:export thundercats-are-spectating
-  ([] (thundercats-are-spectating 1000))
-  ([interval]
-     (let [timer (goog.Timer. interval)
+  ([] (thundercats-are-spectating 1000 5000))
+  ([interval global-interval]
+     (let [global-timer (goog.Timer. global-interval)
+           timer (goog.Timer. interval)
+           global-status (fn [] (Xhr/send global-status-url
+                                          #(update-global-status (event->clj %))))
            status (fn [] (Xhr/send status-url
                                    #(update-status (event->clj %) false)))
            work-toggle (fn []
@@ -218,9 +268,11 @@
                            (do (reset! working? true)
                                (dom/setTextContent join-button "leave!")
                                (thundercats-are-go))))]
-       ;; status update loop
+       ;; status update loops
        (log "you're tuning in live!")
+       (events/listen global-timer goog.Timer/TICK global-status)
        (events/listen timer goog.Timer/TICK status)
+       (. global-timer (start))
        (. timer (start))
        ;; join the working force
        (events/listen join-button events/EventType.CLICK work-toggle))))

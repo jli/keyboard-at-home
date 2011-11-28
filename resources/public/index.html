@@ -1,5 +1,6 @@
 <html><head><title>keyboard@home</title>
 <style>
+body { font-size: small; }
 #foot {
   position: fixed; bottom: 0; right: 0;
   font-size: x-small;
@@ -8,7 +9,10 @@
 </style></head><body>
 <h1>keyboard@home</h1>
 <div id="joindiv"><button id="join">join!</button> (warning! owns your browser)</div>
-<div id="status"></div>
+<table><tr valign="top"><!--forgivemefather-->
+<td width="50%"><div id="status"></div><td>
+<td width="50%"><div id="global-status"></div></td>
+</tr></table>
 <div id="output"></div>
 <script src="worker.js"></script>
 <script>keyboard_at_home.js_worker.thundercats_are_spectating();</script>
