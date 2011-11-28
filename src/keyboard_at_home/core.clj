@@ -44,7 +44,7 @@
              ["-h" "--help" :default false :flag true]
              ["-j" "--jetty-port" :default 8080 :parse-fn #(Integer. %)]
              ["-s" "--swank-port" :default 8081 :parse-fn #(Integer. %)]
-             ["-a" "--[no-]swank" :default true]
+             ["-k" "--[no-]swank" :default true]
              ["-w" "--worker" :default false]
              ["-i" "--id" :default (cworker/rand-string 8)]
              ["-a" "--address" :default "http://localhost:8080"])]
