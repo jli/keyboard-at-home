@@ -214,8 +214,9 @@ f (in parallel)."
 ;; interesting.
 (defn status []
   (let [{:keys [new in-progress finished]} @keyboard-work
-        {:keys [gen population top prev-gen-top history]} @evo-state]
+        {:keys [gen params population top prev-gen-top history]} @evo-state]
     {:gen gen
+     :params params
      :history (map average history)
      :top top
      :prev-gen-top prev-gen-top

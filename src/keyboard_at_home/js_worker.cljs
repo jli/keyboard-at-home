@@ -100,12 +100,16 @@
 
 (def spark-id "sparkspan")
 
-(defn render-status [{:keys [gen history top prev-gen-top
+(defn render-status [{:keys [gen params history top prev-gen-top
                              workers new in-progress finished]}
                      worker?]
   (let [{:keys [n mean-time]} @stats]
     (node "div" nil
           (node "span" nil "generation: " (str gen))
+          (html "<br>")
+          (node "span" nil "radiation level: " (str (:radiation-level params)))
+          (html "<br>")
+          (node "span" nil "immigrant rate: " (str (:immigrant-rate params)))
           (html "<br>")
           (node "span" nil "# workers: " (str workers))
           (html "<br>")
