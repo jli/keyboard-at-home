@@ -56,7 +56,8 @@
 (def fitness-data (kbd/symbol-downcase (.toLowerCase data/fitness)))
 
 (defn work-loop [addr id]
-  (print-status addr)
+  ;; meh
+  ;; (print-status addr)
   (log "getting work...")
   (let [batch (get-work-loop addr id)
         fitted (time (doall
