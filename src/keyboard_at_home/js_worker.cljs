@@ -15,6 +15,8 @@
 
 ;;; util
 
+(defn index [coll] (map-indexed vector coll))
+
 (def html dom/htmlToDocumentFragment)
 (def node dom/createDom)
 
@@ -89,7 +91,7 @@
       (set! (.strokeStyle ctx) "red")
       (set! (.lineWidth ctx) 1.5)
       (. ctx (beginPath))
-      (doseq [[v i] (map vector vals (range))]
+      (doseq [[i v] (index vals)]
         (let [x (* i (/ w (count vals)))
               y (- offh (* offh (/ (- v minv)
                                    (- maxv minv))))]
