@@ -213,18 +213,25 @@ f (in parallel)."
 ;; external! frobbify state so workers can display something
 ;; interesting.
 (defn status []
-  (let [{:keys [new in-progress finished]} @keyboard-work
-        {:keys [gen params population top prev-gen-top history]} @evo-state]
+  (let [{:keys [gen params top prev-gen-top history]} @evo-state
+        {:keys [new in-progress finished]} @keyboard-work]
     {:gen gen
      :params params
-     :history (map average history)
      :top top
      :prev-gen-top prev-gen-top
+     :history (map average history)
      :workers (count @worker-stats)
      :new (* work-batch-size (count new))
      :in-progress (* work-batch-size (count in-progress))
      :finished (count finished)
      }))
+
+;; external! only expose average of each simulation's history
+(defn global-status []
+  (map (fn [[params evo-states]]
+         [params (map (fn [state] (map average (:history state)))
+                      evo-states)])
+       @global-state))
 
 ;; move abandoned work from in-progress to new
 ;; add to worker stats?

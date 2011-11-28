@@ -25,6 +25,7 @@
   (POST "/done" [id work] (do (evolve/work-done id (deserial-work work))
                               (response "ok")))
   (GET "/status" [] (response (prn-str (evolve/status))))
+  (GET "/global-status" [] (response (prn-str (evolve/global-status))))
   (GET "/love" [] (response "<3"))
   (GET "/" [] (file-response "resources/public/index.html"))
   (resources "/"))
