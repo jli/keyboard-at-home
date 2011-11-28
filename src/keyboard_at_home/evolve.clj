@@ -452,3 +452,8 @@ f (in parallel)."
       (log "running genetic with" params)
       (let [evo-result (time (genetic iters n topn params))]
         (swap! global-state update params conj evo-result)))))
+
+(defn start-global
+  ([] (start-global 100 10 5))
+  ([iters n topn]
+     (.start (Thread. #(global-genetic iters n topn)))))

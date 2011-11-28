@@ -51,5 +51,6 @@
       (cworker/start-worker (:address opts) (:id opts))
       (do (when-not (:no-swank opts)
             (swank.swank/start-server :port (:swank-port opts)))
+          (evolve/start-global)
           (println "starting jetty...")
           (run-jetty #'app {:port (:jetty-port opts)})))))
