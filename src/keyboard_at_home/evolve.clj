@@ -14,25 +14,32 @@
 ;; across the wire as well as mutate/mate keyvecs. so go for
 ;; compactness and store everything as keyvecs.
 
-;; there are 3 main pieces of state:
+;; parameters only contain the radiation-level and immigrant-rate. the
+;; population size that survives each iteration is not a parameter,
+;; for now.
+
+;; there are 4 main pieces of state:
 ;;
-;; * evolution state
+;; * current evolution state
 ;; ** generation number
+;; ** simulation parameters (described above)
 ;; ** current keyboard population
 ;; ** top n keyboards seen so far
-;; ** (estimated) number of workers (move to worker state?)
-;; ** history
-;; *** list of each past generation's top n keyboards
+;; ** top n keyboards from the previous generation
+;; ** history: list of each past generation's top n keyboard scores
 ;;
 ;; * current population fitness testing
 ;; ** finished
 ;; ** in-progress (assigned to a worker). have timestamps and worker ids.
 ;; ** new (unassigned)
 ;;
-;; * worker stats, containing per-worker summary stats of
-;; compute time
+;; * worker stats, containing per-worker summary stats of compute
+;;   time. # entries is estimate of worker population.
 ;;
-;; todo: different parameters with top score curves
+;; * global evolution history. map from parameters to list of
+;;   evolution states (similar to the state described above, but don't
+;;   contain population or previous top keyboards).
+
 
 
 
@@ -102,6 +109,7 @@ f (in parallel)."
 
 
 
+
 ;;; enterprise plumbing
 
 (defn log [& args]
@@ -115,14 +123,19 @@ f (in parallel)."
 ;;; it's evolution baby
 
 (def work-batch-size "number of keyvecs in a batch" 2)
-(def radiation-level "how many mutations keyvecs are subject to" 2)
-(def immigrant-rate "random kbds added to population as a fraction of population" 0.10)
 (def work-batch-ttl "how long a work-batch can be unfinished before reassignment"
      (* 15 1000))
 (def worker-ttl "how long before a worker is considered dead"
      (* 120 1000))
 (def reaper-period "how long the reaper sleeps"
      (* 3 1000))
+
+;; 0 to half the size of the keyboard seems sensible
+(def radiation-level-range "how many mutations keyvecs are subject to"
+     (range 0 (inc (/ (count kbd/charset) 2))))
+;; 0% to half the population
+(def immigrant-rate-range "random kbds added to population as a fraction of population"
+     (range 0 0.6 0.1))
 
 (defn local-fitness [population text]
   (sort-by second (ppair-with #(kbd/fitness % text)
@@ -131,6 +144,7 @@ f (in parallel)."
 (defonce keyboard-work (atom nil))
 (defonce worker-stats (atom {}))
 (defonce evo-state (atom nil))
+(defonce global-state (atom {}))
 
 (def empty-stats {:n 0 :mean 0.
                   :pinged nil ; last-heard-from time
@@ -335,12 +349,12 @@ f (in parallel)."
   "Returns a new population of evolved keyboards. radiation (int)
   controls how many mutations happen. immigrants [0,1] controls how
   many randoms are added to the population."
-  [population radiation immigrant-rate]
+  [population {:keys [radiation-level immigrant-rate]}]
   (let [immigrants (repeatedly (Math/ceil (* immigrant-rate (count population)))
                                random-keyvec)
         parents (concat immigrants population)
         children (dotime (map (partial apply sex) (pairwise parents)))
-        next-gen (dotime (map #(mutate % radiation) (concat parents children)))
+        next-gen (dotime (map #(mutate % radiation-level) (concat parents children)))
         scored (time (distributed-fitness next-gen))
         ;; resize worker population
         nworkers (count @worker-stats)
@@ -352,14 +366,18 @@ f (in parallel)."
     {:scored scored
      :next-population next-pop}))
 
-(defn genetic-loop [{:keys [gen population top history] :as state}]
+;; get rid of data that's uninteresting at tho global level
+(defn globalify [evo-state]
+  (dissoc evo-state :population :prev-gen-top))
+
+(defn genetic-loop [iters {:keys [gen params population top history] :as state}]
   (reset! evo-state state)
-  (let [{:keys [scored next-population]} (evolve population radiation-level immigrant-rate)
+  (let [{:keys [scored next-population]} (evolve population params)
         ave-score (fn [xs] (average (map second xs)))
         topn (count top)
         gen-top (take topn scored)
         new-top (take topn (sort-by second (set (concat scored top))))]
-    (println "======== generation" (inc gen))
+    (println "======== generation" (inc gen) params)
     (println "history:" (map average (take 10 history)))
     (println "   nworkers:" (count @worker-stats))
     (println "    gen ave:" (ave-score scored))
@@ -369,36 +387,53 @@ f (in parallel)."
     (println (apply kbd/keyvec+score->str (first new-top)))
     (doseq [[kv score] gen-top]
       (println (str "---\n" (kbd/keyvec+score->str kv score))))
-    (recur {:gen (inc gen)
-            :population next-population
-            :top new-top
-            :prev-gen-top gen-top
-            :history (conj history (map second gen-top))})))
+    (let [next-state {:gen (inc gen)
+                      :params params
+                      :population next-population
+                      :top new-top
+                      :prev-gen-top gen-top
+                      :history (conj history (map second gen-top))}]
+      (if (>= (:gen next-state) iters)
+        (globalify next-state)
+        (recur iters next-state)))))
 
-(defn initial-gen [n topn text]
+(defn initial-gen [n topn params text]
   (let [pop (repeatedly n random-keyvec)
         ;; score initial gen locally
         scored (local-fitness pop text)
         top (take topn scored)]
     {:gen 0
+     :params params
      :population pop
      :top top
      :prev-gen-top nil
      :history (list (map second top))}))
 
+;; work-reaper thread
 (defonce reaper (atom nil))
 
 (defn start-reaper []
   (let [start (fn [t]
                 (if (nil? t)
-                  (let [t (Thread. #(work-reaper work-batch-ttl worker-ttl reaper-period))]
-                    (.start t)
-                    t)
+                  (.start (Thread. #(work-reaper work-batch-ttl worker-ttl
+                                                 reaper-period)))
                   (do (log "reaper already running") t)))]
     (swap! reaper start)))
 
+;; clj, cljs interop sadness
 (def fitness-data (kbd/symbol-downcase (.toLowerCase data/fitness)))
 
-(defn genetic [n topn]
+(defn genetic [iters n topn params]
   (start-reaper)
-  (genetic-loop (initial-gen n topn fitness-data)))
+  (genetic-loop iters (initial-gen n topn params fitness-data)))
+
+;; up the ladder of abstraction
+(defn global-genetic [iters n topn]
+  (let [all-params (for [r radiation-level-range
+                         i immigrant-rate-range]
+                     {:radiation-level r
+                      :immigrant-rate i})]
+    (doseq [params (cycle all-params)]
+      (log "running genetic with" params)
+      (let [evo-result (time (genetic iters n topn params))]
+        (swap! global-state update params conj evo-result)))))
