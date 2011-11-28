@@ -7,7 +7,7 @@
         [ring.middleware.reload :only [wrap-reload]]
         [ring.middleware.stacktrace :only [wrap-stacktrace]]
         [ring.middleware.gzip :only [wrap-gzip]]
-        [clojure.tools.cli :only [cli optional]])
+        [clojure.tools.cli :only [cli]])
   (:require [swank.swank]
             [keyboard-at-home.evolve :as evolve]
             [keyboard-at-home.console-worker :as cworker])
@@ -39,18 +39,20 @@
          wrap-stacktrace))
 
 (defn -main [& args]
-  (let [opts (cli args
-                  (optional ["-j" "--jetty-port" :default 8080] #(Integer. %))
-                  (optional ["-s" "--swank-port" :default 8081] #(Integer. %))
-                  (optional ["-ns" "--no-swank" :default false])
-                  ;; uh, better clientness
-                  (optional ["-w" "--worker" :default false])
-                  (optional ["-i" "--id" :default (cworker/rand-string 8)])
-                  (optional ["-a" "--address" :default "http://localhost:8080"]))]
-    (if (:worker opts)
-      (cworker/start-worker (:address opts) (:id opts))
-      (do (when-not (:no-swank opts)
-            (swank.swank/start-server :port (:swank-port opts)))
-          (evolve/start-global)
-          (println "starting jetty...")
-          (run-jetty #'app {:port (:jetty-port opts)})))))
+  (let [[opts _anon banner]
+        (cli args
+             ["-h" "--help" :default false :flag true]
+             ["-j" "--jetty-port" :default 8080 :parse-fn #(Integer. %)]
+             ["-s" "--swank-port" :default 8081 :parse-fn #(Integer. %)]
+             ["-a" "--[no-]swank" :default true]
+             ["-w" "--worker" :default false]
+             ["-i" "--id" :default (cworker/rand-string 8)]
+             ["-a" "--address" :default "http://localhost:8080"])]
+    (cond
+     (:help opts) (println banner)
+     (:worker opts) (cworker/start-worker (:address opts) (:id opts))
+     :else (do (when (:swank opts)
+                 (swank.swank/start-server :port (:swank-port opts)))
+               (evolve/start-global)
+               (println "starting jetty...")
+               (run-jetty #'app {:port (:jetty-port opts)})))))
