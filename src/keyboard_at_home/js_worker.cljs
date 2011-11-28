@@ -194,12 +194,8 @@
                      (do (log "got " (count batch) " kbds")
                          (compute-batch id batch))
                      (do (log "no work available")
-                         (Timer/callOnce #(work-loop id) 1500)))))
-          status (fn [e]
-                   (update-status (event->clj e) true)
-                   (when @working?
-                     (Xhr/send (work-url id) work)))]
-      (Xhr/send status-url status))))
+                         (Timer/callOnce #(work-loop id) 1500)))))]
+      (Xhr/send (work-url id) work))))
 
 (defn ^:export thundercats-are-go []
   (let [id (rand-string 8)]
@@ -217,11 +213,9 @@
            work-toggle (fn []
                          (if @working?
                            (do (reset! working? false)
-                               (. timer (start))
                                (dom/setTextContent join-button "join!")
                                (log "thanks for your efforts!"))
                            (do (reset! working? true)
-                               (. timer (stop))
                                (dom/setTextContent join-button "leave!")
                                (thundercats-are-go))))]
        ;; status update loop
