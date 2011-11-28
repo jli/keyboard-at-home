@@ -196,7 +196,6 @@
   (let [status (radix-sort [(comp :radiation-level first)
                             (comp :immigrant-rate first)] status)]
     (when @global-changed?
-      (log "global changed")
       (reset! global-changed? false)
       (dom/removeChildren global-status-node)
       (dom/appendChild global-status-node (render-global-status status))
