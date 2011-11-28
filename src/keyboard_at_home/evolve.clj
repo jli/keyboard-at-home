@@ -369,7 +369,7 @@ f (in parallel)."
 
 ;; get rid of data that's uninteresting at tho global level
 (defn globalify [evo-state]
-  (dissoc evo-state :population :prev-gen-top))
+  (dissoc evo-state :gen :params :population :prev-gen-top))
 
 (defn genetic-loop [iters {:keys [gen params population top history] :as state}]
   (reset! evo-state state)
