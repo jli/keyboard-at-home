@@ -56,6 +56,11 @@
   [map k f & args]
   (apply update-in map [k] f args))
 
+(defn decimal-places [f places]
+  (let [mult (Math/pow 10 places)]
+    (/ (Math/round (* f mult))
+       mult)))
+
 (defn filter-split
   "Return a pair of seqs. All in the first seq tested true and all in
   the second tested false via the given pred."
@@ -132,10 +137,10 @@ f (in parallel)."
 
 ;; 0 to half the size of the keyboard seems sensible
 (def radiation-level-range "how many mutations keyvecs are subject to"
-     (range 0 (inc (/ (count kbd/charset) 2))))
+     (range 0 (inc (/ (count kbd/charset) 2)) 4))
 ;; 0% to half the population
 (def immigrant-rate-range "random kbds added to population as a fraction of population"
-     (range 0 0.6 0.1))
+     (map #(decimal-places % 2) (range 0 0.6 0.1)))
 
 (defn local-fitness [population text]
   (sort-by second (ppair-with #(kbd/fitness % text)
@@ -227,6 +232,7 @@ f (in parallel)."
      }))
 
 ;; external! only expose average of each simulation's history
+;; a list of pairs: params and list of each generation's average score
 (defn global-status []
   (map (fn [[params evo-states]]
          [params (map (fn [state] (map average (:history state)))
