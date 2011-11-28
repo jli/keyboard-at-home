@@ -363,7 +363,8 @@ f (in parallel)."
         parents (concat immigrants population)
         children (dotime (map (partial apply sex) (pairwise parents)))
         next-gen (dotime (map #(mutate % radiation-level) (concat parents children)))
-        scored (time (distributed-fitness next-gen))
+        ;; set, to uniquify population
+        scored (time (distributed-fitness (set next-gen)))
         ;; resize worker population
         nworkers (count @worker-stats)
         target-size (* work-batch-size nworkers)
