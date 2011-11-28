@@ -251,7 +251,7 @@
 (def join-button (dom/getElement "join"))
 
 (defn ^:export thundercats-are-spectating
-  ([] (thundercats-are-spectating 1000 5000))
+  ([] (thundercats-are-spectating 2000 5000))
   ([interval global-interval]
      (let [global-timer (goog.Timer. global-interval)
            timer (goog.Timer. interval)
