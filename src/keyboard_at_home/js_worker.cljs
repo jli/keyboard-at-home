@@ -285,10 +285,12 @@
   ([interval global-interval]
      (let [global-timer (goog.Timer. global-interval)
            timer (goog.Timer. interval)
-           global-status (fn [] (Xhr/send global-status-url
-                                          #(update-global-status (event->clj %))))
-           status (fn [] (Xhr/send status-url
-                                   #(update-status (event->clj %) false)))
+           global-xhr (doto (goog.net.XhrIo.)
+                        (events/listen goog.net.EventType.COMPLETE
+                                       #(update-global-status (event->clj %))))
+           status-xhr (doto (goog.net.XhrIo.)
+                        (events/listen goog.net.EventType.COMPLETE
+                                       #(update-status (event->clj %) false)))
            work-toggle (fn []
                          (if @working?
                            (do (reset! working? false)
@@ -299,7 +301,7 @@
                                (thundercats-are-go))))]
        ;; status update loops
        (log "you're tuning in live!")
-       (timer-attach global-timer global-status)
-       (timer-attach timer status)
+       (timer-attach global-timer #(.send global-xhr global-status-url))
+       (timer-attach timer #(.send status-xhr status-url))
        ;; join the working force
        (events/listen join-button events/EventType.CLICK work-toggle))))
