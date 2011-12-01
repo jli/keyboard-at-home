@@ -108,6 +108,7 @@
     (set! (.. canvas style height) h)
     (set! (.width canvas) w)
     (dom/appendChild parent canvas)
+    (dom/appendChild parent (html "<br>"))
     (let [offh (.offsetHeight canvas)]
       (set! (.height canvas) offh)
       (set! (.strokeStyle ctx) "red")
@@ -182,7 +183,7 @@
         (node "h2" nil "global evolution history")
         (apply node "table" (js* "{\"style\": \"border: solid thin;\"}")
                (mapcat (fn [[{:keys [radiation-level immigrant-rate] :as params} histories]]
-                         [(node "tr" nil
+                         [(node "tr" (js* "{\"valign\": \"top\"}")
                                 (node "td" nil
                                       "r" (str radiation-level) ", i" (str immigrant-rate))
                                 (apply node "td" nil
