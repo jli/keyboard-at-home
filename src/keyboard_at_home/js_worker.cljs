@@ -181,8 +181,8 @@
 ;; don't update when nothing new
 (def last-status (atom nil))
 (def last-params (atom nil))
-;; global changed if current evo params not= last-params
-(def global-changed? (atom false))
+;; global changed if current evo params not= last-params. initially true for first update.
+(def global-changed? (atom true))
 
 (defn update-status [status worker?]
   (when (not= @last-status status)
