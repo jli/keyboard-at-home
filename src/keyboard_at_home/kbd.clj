@@ -173,9 +173,14 @@
 (defn print-keyvec [kv] (println (keyvec->str kv)))
 
 (defn keyvec+score->str [kv score]
-  (let [[a b c] (.split (keyvec->str kv) "\n")
-        a (str a "     " score)]
-    (apply str (interpose "\n" [a b c]))))
+  (let [kv-str (keyvec->str kv)
+        width (count (first (.split kv-str "\n")))
+        score-width (count (str score))
+        n (Math/floor (/ (- width score-width) 2))
+        pad (if (> width score-width)
+              (apply str (repeat n \space))
+              "")]
+    (str pad score "\n" kv-str)))
 
 ;; lowercase because different between clojure and clojurescript...
 ;; could also apply in data.
