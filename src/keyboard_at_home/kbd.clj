@@ -182,10 +182,11 @@
 (defn fitness [kv text]
   ;; unknown char pairs get 0 cost
   (let [chars-fitness (keyvec->chars-fitness kv)
-        cost #(get chars-fitness % 0)]
-    (reduce (fn [acc cs] (+ acc (cost cs)))
-            0
-            (partition 2 1 text))))
+        cost #(get chars-fitness % 0)
+        total (reduce (fn [acc cs] (+ acc (cost cs)))
+                      0
+                      (partition 2 1 text))]
+    (float (/ total (count text)))))
 
 (defn test-fitness [kv text lowercase]
   (let [chars-fitness (keyvec->chars-fitness kv)
