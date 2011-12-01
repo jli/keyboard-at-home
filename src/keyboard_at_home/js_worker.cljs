@@ -34,6 +34,10 @@
 
 (defn now [] (goog.date.DateTime.))
 
+(defn timer-attach [timer f]
+  (f)
+  (events/listen timer goog.Timer/TICK f))
+
 (defn form-params [m]
   (let [pairs (map (fn [[k v]] (str (name k) "=" (js/encodeURIComponent v))) m)]
     (apply str (interpose "&" pairs))))
@@ -269,8 +273,8 @@
                                (thundercats-are-go))))]
        ;; status update loops
        (log "you're tuning in live!")
-       (events/listen global-timer goog.Timer/TICK global-status)
-       (events/listen timer goog.Timer/TICK status)
+       (timer-attach global-timer global-status)
+       (timer-attach timer status)
        (. global-timer (start))
        (. timer (start))
        ;; join the working force
