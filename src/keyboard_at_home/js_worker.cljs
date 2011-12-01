@@ -9,9 +9,7 @@
               [goog.Timer :as Timer]
               [cljs.reader :as reader]
               [keyboard-at-home.kbd :as kbd]
-              ;; weird cljs-watch badness
-              [keyboard-at-home.data :as data]
-              ))
+              [keyboard-at-home.data :as data]))
 
 ;;; util
 
