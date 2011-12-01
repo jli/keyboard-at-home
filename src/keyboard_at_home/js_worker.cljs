@@ -204,16 +204,15 @@
 
 ;; don't update when nothing new
 (def last-status (atom nil))
+;; global changed if current evo params not= last-params
 (def last-params (atom nil))
-;; global changed if current evo params not= last-params. initially true for first update.
-(def global-changed? (atom true))
 
-(defn update-status [status worker?]
+(defn update-status [status update-global worker?]
   (when (not= @last-status status)
     (reset! last-status status)
     (when (not= @last-params (:params status))
-      (reset! global-changed? true)
-      (reset! last-params (:params status)))
+      (reset! last-params (:params status))
+      (update-global))
     (dom/removeChildren status-node)
     (dom/appendChild status-node (render-status status worker?))
     ;; needs to happen after status-node is added to dom, in order to
@@ -221,18 +220,16 @@
     (render-sparkline (dom/getElement spark-id) (reverse (:history status)))))
 
 (defn update-global-status [{:keys [param-history top]}]
-  (when @global-changed?
-    (reset! global-changed? false)
-    (dom/removeChildren global-top-node)
-    (dom/appendChild global-top-node (render-global-top top))
-    (let [param-history (radix-sort [(comp :radiation-level first)
-                                     (comp :immigrant-rate first)] param-history)]
-      (dom/removeChildren global-status-node)
-      (dom/appendChild global-status-node (render-global-status param-history))
-      (doseq [[params histories] param-history
-              [i history] (index histories)]
-        (let [div (dom/getElement (params+index->spark-id params i))]
-          (render-summary+sparkline div (reverse history)))))))
+  (dom/removeChildren global-top-node)
+  (dom/appendChild global-top-node (render-global-top top))
+  (let [param-history (radix-sort [(comp :radiation-level first)
+                                   (comp :immigrant-rate first)] param-history)]
+    (dom/removeChildren global-status-node)
+    (dom/appendChild global-status-node (render-global-status param-history))
+    (doseq [[params histories] param-history
+            [i history] (index histories)]
+      (let [div (dom/getElement (params+index->spark-id params i))]
+        (render-summary+sparkline div (reverse history))))))
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
@@ -283,14 +280,14 @@
 (defn ^:export thundercats-are-spectating
   ([] (thundercats-are-spectating 2000 5000))
   ([interval global-interval]
-     (let [global-timer (goog.Timer. global-interval)
-           timer (goog.Timer. interval)
+     (let [timer (goog.Timer. interval)
            global-xhr (doto (goog.net.XhrIo.)
                         (events/listen goog.net.EventType.COMPLETE
                                        #(update-global-status (event->clj %))))
+           update-global #(.send global-xhr global-status-url)
            status-xhr (doto (goog.net.XhrIo.)
                         (events/listen goog.net.EventType.COMPLETE
-                                       #(update-status (event->clj %) false)))
+                                       #(update-status (event->clj %) update-global false)))
            work-toggle (fn []
                          (if @working?
                            (do (reset! working? false)
@@ -301,7 +298,6 @@
                                (thundercats-are-go))))]
        ;; status update loops
        (log "you're tuning in live!")
-       (timer-attach global-timer #(.send global-xhr global-status-url))
        (timer-attach timer #(.send status-xhr status-url))
        ;; join the working force
        (events/listen join-button events/EventType.CLICK work-toggle))))
