@@ -66,7 +66,16 @@
     (submit-work addr id fitted)
     (recur addr id)))
 
+(defn safe [f msg]
+  (try (f)
+       (catch Exception e (log msg e))))
+
+(defn safe-work-loop [addr id]
+  (safe #(work-loop addr id) "whoa, exception! chill for a few seconds.")
+  (Thread/sleep 5000)
+  (recur addr id))
+
 (defn start-worker [addr id]
   (println "worker" id "reporting for duty")
   (client/with-connection-pool nil
-    (work-loop addr id)))
+    (safe-work-loop addr id)))
