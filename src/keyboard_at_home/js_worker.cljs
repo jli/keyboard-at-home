@@ -36,7 +36,8 @@
 
 (defn timer-attach [timer f]
   (f)
-  (events/listen timer goog.Timer/TICK f))
+  (events/listen timer goog.Timer/TICK f)
+  (. timer (start)))
 
 (defn form-params [m]
   (let [pairs (map (fn [[k v]] (str (name k) "=" (js/encodeURIComponent v))) m)]
@@ -274,7 +275,5 @@
        (log "you're tuning in live!")
        (timer-attach global-timer global-status)
        (timer-attach timer status)
-       (. global-timer (start))
-       (. timer (start))
        ;; join the working force
        (events/listen join-button events/EventType.CLICK work-toggle))))
