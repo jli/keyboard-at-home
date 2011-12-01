@@ -135,9 +135,9 @@ f (in parallel)."
 (def reaper-period "how long the reaper sleeps"
      (* 3 1000))
 
-;; 0 to half the size of the keyboard seems sensible
+;; 0 to 1/4 the size of the keyboard seems sensible
 (def radiation-level-range "how many mutations keyvecs are subject to"
-     (range 0 (inc (/ (count kbd/charset) 2)) 4))
+     (range 0 (inc (/ (count kbd/charset) 4))))
 ;; 0% to half the population
 (def immigrant-rate-range "random kbds added to population as a fraction of population"
      (map #(decimal-places % 2) (range 0 0.6 0.1)))
