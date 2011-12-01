@@ -92,7 +92,7 @@
         ctx (.getContext canvas "2d")
         minv (apply min vals)
         maxv (apply max vals)
-        stretch-factor 5
+        stretch-factor 2
         w (* stretch-factor (count vals))
         h (atom "1.5em")]
     (set! (.. parent style display) "inline")
@@ -169,8 +169,7 @@
                (mapcat (fn [[{:keys [radiation-level immigrant-rate] :as params} histories]]
                          [(node "tr" nil
                                 (node "td" nil
-                                      "radiation: " (str radiation-level)
-                                      ", immigrants: " (str immigrant-rate))
+                                      "r" (str radiation-level) "i" (str immigrant-rate))
                                 (apply node "td" nil
                                        (map (fn [i]
                                               (let [id (params+index->spark-id params i)]
