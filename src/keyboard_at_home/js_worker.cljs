@@ -97,7 +97,7 @@
         (node "pre" nil (kbd/keyvec->str kbd))))
 
 ;; loose cljs translation of http://ejohn.org/projects/jspark/
-(defn render-sparklines [parent vals]
+(defn render-sparkline [parent vals]
   (let [canvas (node "canvas" (js* "{\"style\": \"background-color: #fafafa;\"}"))
         ctx (.getContext canvas "2d")
         minv (apply min vals)
@@ -122,6 +122,13 @@
           (when (zero? i) (.moveTo ctx x y))
           (.lineTo ctx x y)))
       (. ctx (stroke)))))
+
+;; works weirdly because render-sparkline attaches to existing parent
+(defn render-summary+sparkline [parent vals]
+  (let [to3 (fn [f] (str (.toFixed f 3)))
+        summary (node "span" nil (to3 (first vals)) "→" (to3 (last vals)))]
+    (dom/appendChild parent summary)
+    (render-sparkline parent vals)))
 
 (def spark-id "sparkspan")
 
@@ -211,7 +218,7 @@
     (dom/appendChild status-node (render-status status worker?))
     ;; needs to happen after status-node is added to dom, in order to
     ;; get size of inline canvas
-    (render-sparklines (dom/getElement spark-id) (reverse (:history status)))))
+    (render-sparkline (dom/getElement spark-id) (reverse (:history status)))))
 
 (defn update-global-status [{:keys [param-history top]}]
   (when @global-changed?
@@ -225,7 +232,7 @@
       (doseq [[params histories] param-history
               [i history] (index histories)]
         (let [div (dom/getElement (params+index->spark-id params i))]
-          (render-sparklines div (reverse history)))))))
+          (render-summary+sparkline div (reverse history)))))))
 
 (defn new-mean [n cur-val add-n new-val]
   (/ (+ (* n cur-val)
