@@ -54,6 +54,7 @@
 
 (def status-node (dom/getElement "status"))
 (def global-status-node (dom/getElement "global-status"))
+(def global-top-node (dom/getElement "global-top"))
 
 
 
@@ -86,6 +87,14 @@
 
 (defn render-kbd+score [[kbd score]]
   (node "pre" nil (kbd/keyvec+score->str kbd score)))
+
+(defn render-top-kbd [{:keys [kbd score params]}]
+  (node "div" nil
+        "r" (str (:radiation-level params))
+        ", i" (str (:immigrant-rate params))
+        (html "<br>")
+        (str score)
+        (node "pre" nil (kbd/keyvec->str kbd))))
 
 ;; loose cljs translation of http://ejohn.org/projects/jspark/
 (defn render-sparklines [parent vals]
@@ -178,6 +187,14 @@
                                             (range (count histories)))))])
                        status))))
 
+(defn render-global-top [top]
+  (node "div" nil
+        (node "h2" nil "best so far")
+        (node "table" (js* "{\"style\": \"border: solid thin;\"}")
+              (apply node "tr" nil
+                     (map (fn [top-kbd] (node "td" nil (render-top-kbd top-kbd)))
+                          top)))))
+
 ;; don't update when nothing new
 (def last-status (atom nil))
 (def last-params (atom nil))
@@ -196,14 +213,16 @@
     ;; get size of inline canvas
     (render-sparklines (dom/getElement spark-id) (reverse (:history status)))))
 
-(defn update-global-status [status]
-  (let [status (radix-sort [(comp :radiation-level first)
-                            (comp :immigrant-rate first)] status)]
-    (when @global-changed?
-      (reset! global-changed? false)
+(defn update-global-status [{:keys [param-history top]}]
+  (when @global-changed?
+    (reset! global-changed? false)
+    (dom/removeChildren global-top-node)
+    (dom/appendChild global-top-node (render-global-top top))
+    (let [param-history (radix-sort [(comp :radiation-level first)
+                                     (comp :immigrant-rate first)] param-history)]
       (dom/removeChildren global-status-node)
-      (dom/appendChild global-status-node (render-global-status status))
-      (doseq [[params histories] status
+      (dom/appendChild global-status-node (render-global-status param-history))
+      (doseq [[params histories] param-history
               [i history] (index histories)]
         (let [div (dom/getElement (params+index->spark-id params i))]
           (render-sparklines div (reverse history)))))))

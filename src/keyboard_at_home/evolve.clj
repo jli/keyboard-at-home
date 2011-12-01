@@ -36,9 +36,11 @@
 ;; * worker stats, containing per-worker summary stats of compute
 ;;   time. # entries is estimate of worker population.
 ;;
-;; * global evolution history. map from parameters to list of
-;;   evolution states (similar to the state described above, but don't
-;;   contain population or previous top keyboards).
+;; * global evolution history
+;; ** top n keyboards ever. each item has :kbd, :score, :params.
+;; ** map from parameters to list of evolution states (similar to the
+;;    state described above, but don't contain population or previous
+;;    top keyboards).
 
 
 
@@ -224,20 +226,21 @@ f (in parallel)."
      :params params
      :top top
      :prev-gen-top prev-gen-top
-     :history (map average history)
+     :history history
      :workers (count @worker-stats)
      :new (* work-batch-size (count new))
      :in-progress (* work-batch-size (count in-progress))
      :finished (count finished)
      }))
 
-;; external! only expose average of each simulation's history
-;; a list of pairs: params and list of each generation's average score
+;; external!
 (defn global-status []
-  (map (fn [[params evo-states]]
-         [params (map (fn [state] (map average (:history state)))
-                      evo-states)])
-       @global-state))
+  (let [{:keys [param-states top]} @global-state
+        param-history (map (fn [[params evo-states]]
+                             [params (map :history evo-states)])
+                           param-states)]
+    {:param-history param-history
+     :top top}))
 
 ;; move abandoned work from in-progress to new
 ;; add to worker stats?
@@ -381,7 +384,7 @@ f (in parallel)."
     {:scored scored
      :next-population next-pop}))
 
-;; get rid of data that's uninteresting at tho global level
+;; get rid of data that's uninteresting at the global level
 (defn globalify [evo-state]
   (dissoc evo-state :gen :params :population :prev-gen-top))
 
@@ -393,7 +396,7 @@ f (in parallel)."
         gen-top (take topn scored)
         new-top (take topn (sort-by second (set (concat scored top))))]
     (println "======== generation" (inc gen) params)
-    (println "history:" (map average (take 10 history)))
+    (println "history:" (take 10 history))
     (println "   nworkers:" (count @worker-stats))
     (println "    gen ave:" (ave-score scored))
     (println "gen top ave:" (ave-score gen-top))
@@ -407,7 +410,7 @@ f (in parallel)."
                       :population next-population
                       :top new-top
                       :prev-gen-top gen-top
-                      :history (conj history (map second gen-top))}]
+                      :history (conj history (average (map second gen-top)))}]
       (if (>= (:gen next-state) iters)
         (globalify next-state)
         (recur iters next-state)))))
@@ -422,7 +425,7 @@ f (in parallel)."
      :population pop
      :top top
      :prev-gen-top nil
-     :history (list (map second top))}))
+     :history (list (average (map second top)))}))
 
 ;; work-reaper thread
 (defonce reaper (atom nil))
@@ -442,6 +445,14 @@ f (in parallel)."
   (start-reaper)
   (genetic-loop iters (initial-gen n topn params fitness-data)))
 
+(defn update-global [{:keys [param-states top] :as state} topn params new-evo-state]
+  (let [param-states (update param-states params conj new-evo-state)
+        latest-top (map (fn [[k s]] {:kbd k :score s :params params})
+                        (:top new-evo-state))
+        top (take topn (sort-by :score (set (concat top latest-top))))]
+    {:param-states param-states
+     :top top}))
+
 ;; up the ladder of abstraction
 (defn global-genetic [iters n topn]
   (let [all-params (for [r radiation-level-range
@@ -451,7 +462,7 @@ f (in parallel)."
     (doseq [params (cycle all-params)]
       (log "running genetic with" params)
       (let [evo-result (time (genetic iters n topn params))]
-        (swap! global-state update params conj evo-result)))))
+        (swap! global-state update-global topn params evo-result)))))
 
 (defn start-global
   ([] (start-global 50 20 5))
