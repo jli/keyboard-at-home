@@ -3,3 +3,4 @@ pom.xml
 lib
 classes
 *js
+.lein-deps-sum
