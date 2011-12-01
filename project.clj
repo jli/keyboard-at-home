@@ -7,5 +7,5 @@
                  [ring/ring-jetty-adapter "0.3.11"]
                  [amalloy/ring-gzip-middleware "0.1.0"]
                  [compojure "0.6.5"]
-                 [clj-http "0.2.3"]]
+                 [clj-http "0.2.5"]]
   :main keyboard-at-home.core)

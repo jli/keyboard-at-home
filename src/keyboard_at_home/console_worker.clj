@@ -68,4 +68,5 @@
 
 (defn start-worker [addr id]
   (println "worker" id "reporting for duty")
-  (work-loop addr id))
+  (client/with-connection-pool nil
+    (work-loop addr id)))
