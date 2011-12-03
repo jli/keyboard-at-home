@@ -54,6 +54,15 @@
 (def global-status-node (dom/getElement "global-status"))
 (def global-top-node (dom/getElement "global-top"))
 
+(defn ewma
+  "Return an exponentially-weighted moving average of xs. The weight w
+  [0,1] is applied to new values. Higher values cause the average to
+  move more rapidly."
+  [xs w]
+  (let [inv-w (- 1 w)]
+    (reductions (fn [acc x] (+ (* x w) (* acc inv-w)))
+                xs)))
+
 
 
 ;;; protocol
@@ -102,24 +111,31 @@
         maxv (apply max vals)
         stretch-factor 3
         w (* stretch-factor (count vals))
-        h "1.5em"]
+        h "2em"
+        ewma-vals (ewma vals 0.25)]
     (set! (.. parent style display) "inline")
     (set! (.. canvas style width) w)
     (set! (.. canvas style height) h)
     (set! (.width canvas) w)
     (dom/appendChild parent canvas)
     (dom/appendChild parent (html "<br>"))
-    (let [offh (.offsetHeight canvas)]
+    (let [offh (.offsetHeight canvas)
+          draw (fn [vals]
+                 (doseq [[i v] (index vals)]
+                   (let [x (* i (/ w (count vals)))
+                         y (- offh (* offh (/ (- v minv)
+                                              (- maxv minv))))]
+                     (when (zero? i) (.moveTo ctx x y))
+                     (.lineTo ctx x y))))]
       (set! (.height canvas) offh)
       (set! (.strokeStyle ctx) "red")
       (set! (.lineWidth ctx) 1.5)
       (. ctx (beginPath))
-      (doseq [[i v] (index vals)]
-        (let [x (* i (/ w (count vals)))
-              y (- offh (* offh (/ (- v minv)
-                                   (- maxv minv))))]
-          (when (zero? i) (.moveTo ctx x y))
-          (.lineTo ctx x y)))
+      (draw vals)
+      (. ctx (stroke))
+      (set! (.strokeStyle ctx) "blue")
+      (set! (.lineWidth ctx) 1)
+      (draw ewma-vals)
       (. ctx (stroke)))))
 
 ;; works weirdly because render-sparkline attaches to existing parent
