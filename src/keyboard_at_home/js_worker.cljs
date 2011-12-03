@@ -120,23 +120,20 @@
     (dom/appendChild parent canvas)
     (dom/appendChild parent (html "<br>"))
     (let [offh (.offsetHeight canvas)
-          draw (fn [vals]
+          draw (fn [vals color width]
+                 (set! (.strokeStyle ctx) color)
+                 (set! (.lineWidth ctx) width)
+                 (. ctx (beginPath))
                  (doseq [[i v] (index vals)]
                    (let [x (* i (/ w (count vals)))
                          y (- offh (* offh (/ (- v minv)
                                               (- maxv minv))))]
                      (when (zero? i) (.moveTo ctx x y))
-                     (.lineTo ctx x y))))]
+                     (.lineTo ctx x y)))
+                 (. ctx (stroke)))]
       (set! (.height canvas) offh)
-      (set! (.strokeStyle ctx) "red")
-      (set! (.lineWidth ctx) 1.5)
-      (. ctx (beginPath))
-      (draw vals)
-      (. ctx (stroke))
-      (set! (.strokeStyle ctx) "blue")
-      (set! (.lineWidth ctx) 1)
-      (draw ewma-vals)
-      (. ctx (stroke)))))
+      (draw vals "red" 1.5)
+      (draw ewma-vals "blue" 1))))
 
 ;; works weirdly because render-sparkline attaches to existing parent
 (defn render-summary+sparkline [parent vals]
