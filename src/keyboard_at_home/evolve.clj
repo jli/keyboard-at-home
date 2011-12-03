@@ -137,9 +137,9 @@ f (in parallel)."
 (def reaper-period "how long the reaper sleeps"
      (* 3 1000))
 
-;; 0 to 1/4 the size of the keyboard seems sensible
+;; 0 to 1/5 the size of the keyboard seems sensible (~6 mutations)
 (def radiation-level-range "how many mutations keyvecs are subject to"
-     (range 0 (inc (/ (count kbd/charset) 4))))
+     (range 0 (inc (/ (count kbd/charset) 5))))
 ;; 0% to half the population
 (def immigrant-rate-range "random kbds added to population as a fraction of population"
      (map #(decimal-places % 2) (range 0 0.6 0.1)))
@@ -465,6 +465,6 @@ f (in parallel)."
         (swap! global-state update-global topn params evo-result)))))
 
 (defn start-global
-  ([] (start-global 50 20 5))
+  ([] (start-global 100 30 5))
   ([iters n topn]
      (.start (Thread. #(global-genetic iters n topn)))))
