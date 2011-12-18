@@ -63,6 +63,9 @@
     (/ (Math/round (* f mult))
        mult)))
 
+(defn pretty-range [start end step places]
+  (map #(decimal-places % places) (range start end step)))
+
 (defn filter-split
   "Return a pair of seqs. All in the first seq tested true and all in
   the second tested false via the given pred."
@@ -137,12 +140,12 @@ f (in parallel)."
 (def reaper-period "how long the reaper sleeps"
      (* 3 1000))
 
-;; 0 to 1/5 the size of the keyboard seems sensible (~6 mutations)
-(def radiation-level-range "how many mutations keyvecs are subject to"
-     (range 0 (inc (/ (count kbd/charset) 5))))
+;; gak, floats. this actually includes 1.0 (range includes 0.99999, prettied to 1.0)
+(def radiation-level-range "probability of mutation occuring"
+     (pretty-range 0 1.0 0.1 2))
 ;; 0% to half the population
 (def immigrant-rate-range "random kbds added to population as a fraction of population"
-     (map #(decimal-places % 2) (range 0 0.6 0.1)))
+     (pretty-range 0 0.6 0.1 2))
 
 (defn local-fitness [population text]
   (sort-by second (ppair-with #(kbd/fitness % text)
@@ -328,9 +331,10 @@ f (in parallel)."
   (let [mutators [rotate rand-swap]]
     ((rand-nth mutators) kv)))
 
-(defn mutate [kv times]
-  (let [mutated-kv (nth (iterate tweak-keyvec kv) times)]
-    (apply str mutated-kv)))
+(defn mutate [kv level]
+  (if (< (rand) level)
+    (apply str (tweak-keyvec kv))
+    kv))
 
 (defn random-keyvec [] (apply str (shuffle kbd/charset)))
 
@@ -363,9 +367,9 @@ f (in parallel)."
 ;; next-gen: parents + children, mutated
 ;; new population: top n of next-gen, sorted by fitness
 (defn evolve
-  "Returns a new population of evolved keyboards. radiation (int)
-  controls how many mutations happen. immigrants [0,1] controls how
-  many randoms are added to the population."
+  "Returns a new population of evolved keyboards. radiation-level
+  [0,1] controls the probability of mutations. immigrant-rate [0,1]
+  controls how many randoms are added to the population."
   [population {:keys [radiation-level immigrant-rate]}]
   (let [immigrants (repeatedly (Math/ceil (* immigrant-rate (count population)))
                                random-keyvec)
