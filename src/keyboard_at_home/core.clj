@@ -13,7 +13,6 @@
             [keyboard-at-home.console-worker :as cworker])
   (:gen-class))
 
-;; use strings everywhere? bench
 (defn serial-keyvecs [kvs]
   (prn-str kvs))
 
@@ -45,6 +44,8 @@
              ["-j" "--jetty-port" :default 8080 :parse-fn #(Integer. %)]
              ["-s" "--swank-port" :default 8081 :parse-fn #(Integer. %)]
              ["-k" "--[no-]swank" :default true]
+             ["-p" "--population" :default 30 :parse-fn #(Integer. %)]
+             ["-t" "--iterations" :default 100 :parse-fn #(Integer. %)]
              ["-w" "--worker" :default false :flag true]
              ["-i" "--id" :default (cworker/rand-string 8)]
              ["-a" "--address" :default "http://localhost:8080"])]
@@ -53,6 +54,6 @@
      (:worker opts) (cworker/start-worker (:address opts) (:id opts))
      :else (do (when (:swank opts)
                  (swank.swank/start-server :port (:swank-port opts)))
-               (evolve/start-global)
+               (evolve/start-global (:iterations opts) (:population opts))
                (println "starting jetty...")
                (run-jetty #'app {:port (:jetty-port opts)})))))

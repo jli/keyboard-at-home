@@ -465,6 +465,6 @@ f (in parallel)."
         (swap! global-state update-global topn params evo-result)))))
 
 (defn start-global
-  ([] (start-global 100 30 5))
+  ([iters n] (start-global iters n 5))
   ([iters n topn]
      (.start (Thread. #(global-genetic iters n topn)))))
